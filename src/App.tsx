@@ -246,12 +246,6 @@ export function App() {
     [appendTurn, currentMaterial, maybeTitle],
   );
 
-  /** region screenshot flow (📷 button or hotkey): drag a region, then ask */
-  const doRegionShot = useCallback(async () => {
-    const img = await window.mc.pickRegion();
-    if (img) askShot('', img);
-  }, [askShot]);
-
   // ---- boot: load settings + sessions ----
   useEffect(() => {
     void window.mc.getSettings().then((s) => {
@@ -356,7 +350,7 @@ export function App() {
       }
     });
 
-    const offShot = window.mc.onShotHotkey(() => void doRegionShot());
+    const offShot = window.mc.onShotHotkey(() => askShot(''));
 
     window.__mcAutoStart = () => void startCapture();
     // visual-QA hooks (MC_MAIN_SHOT in electron/main.ts): open a panel from the

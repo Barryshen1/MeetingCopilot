@@ -238,19 +238,32 @@ export function AnswerSession({
           {t.answer.ask}
         </button>
         {visionReady && (
-          <button
-            className="btn"
-            title={t.answer.shotTitle}
-            onClick={async () => {
-              const q = inputRef.current?.value.trim() ?? '';
-              const img = await window.mc.pickRegion();
-              if (!img) return; // cancelled
-              if (inputRef.current) inputRef.current.value = '';
-              onShotAsk(q, img);
-            }}
-          >
-            📷
-          </button>
+          <>
+            <button
+              className="btn"
+              title={t.answer.shotTitle}
+              onClick={() => {
+                const q = inputRef.current?.value.trim() ?? '';
+                if (inputRef.current) inputRef.current.value = '';
+                onShotAsk(q);
+              }}
+            >
+              📷
+            </button>
+            <button
+              className="btn btn-sm"
+              title={t.answer.regionShotTitle}
+              onClick={async () => {
+                const q = inputRef.current?.value.trim() ?? '';
+                const img = await window.mc.pickRegion();
+                if (!img) return; // cancelled
+                if (inputRef.current) inputRef.current.value = '';
+                onShotAsk(q, img);
+              }}
+            >
+              {t.answer.regionShot}
+            </button>
+          </>
         )}
       </div>
     </section>

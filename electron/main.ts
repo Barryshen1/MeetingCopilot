@@ -39,6 +39,7 @@ import { AppTray, trayIconPath } from './tray';
 import { isRendererCommand, type TrayCommand, type TrayMenuState } from '../shared/trayMenu';
 import { KnowledgeStore } from './knowledge';
 import { SessionStore } from './sessions';
+import { captureDisplayScreenshot, ScreenCaptureError } from './screenshot';
 import { DOC_EXTENSIONS, extractDocText } from './docparse';
 import { basename } from 'path';
 import { chatOnce, type ChatResult } from './llm/adapter';
@@ -127,6 +128,7 @@ function bootstrap(): void {
   let osLang: UiLang = 'zh';
   /** set by before-quit so window handlers stop prompting mid-shutdown */
   let quitting = false;
+  let screenCaptureInProgress = false;
   /** an ASR-affecting settings patch arrived while the wizard owned the flow */
   let pendingAsrRestart = false;
   /** renderer capture lifecycle; the tray menu and the diagnostics report read it */
@@ -450,7 +452,7 @@ function bootstrap(): void {
     win.on('hide', () => {
       console.log('[window] hidden');
       refreshTray();
-      noticeWindowHidden();
+      if (!screenCaptureInProgress) noticeWindowHidden();
     });
 
     win.on('closed', () => {
@@ -1101,8 +1103,26 @@ function bootstrap(): void {
       return r.text;
     });
 
-    // ---- R5: screenshot -> vision model. Our own window is excluded from
-    // the capture automatically (content protection). ----
+    async function captureCurrentScreen(signal: AbortSignal): Promise<string> {
+      if (screenCaptureInProgress) throw new Error(T().screenshotBusy);
+      // Resolve the display before hiding the window or awaiting capture.
+      const display = screen.getDisplayNearestPoint(screen.getCursorScreenPoint());
+      screenCaptureInProgress = true;
+      try {
+        return await captureDisplayScreenshot({
+          display, window: win ?? undefined, signal,
+          getSources: (options) => desktopCapturer.getSources(options),
+        });
+      } catch (error) {
+        if (error instanceof ScreenCaptureError) throw new Error(T().screenshotUnavailable);
+        throw error;
+      } finally {
+        screenCaptureInProgress = false;
+      }
+    }
+
+    // ---- R5: current-display screenshot (or an explicitly selected region)
+    // -> vision model. Temporarily hide the assistant during full capture. ----
     ipcMain.on(
       IPC.shotAsk,
       (_e, payload: { requestId: string; question: string; background?: string; imageDataUrl?: string }) => {
@@ -1122,9 +1142,7 @@ function bootstrap(): void {
       // region mode provides a pre-cropped image; else capture the full screen
       const imgP = payload.imageDataUrl
         ? Promise.resolve(payload.imageDataUrl)
-        : desktopCapturer
-            .getSources({ types: ['screen'], thumbnailSize: { width: 1600, height: 900 } })
-            .then((sources) => sources[0].thumbnail.toDataURL());
+        : captureCurrentScreen(ac.signal);
       imgP
         .then((dataUrl) => {
           const messages = buildVisionMessages(payload.question, dataUrl, payload.background || knowledge.text);

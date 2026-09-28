@@ -113,7 +113,9 @@ const zh = {
     genWaiting: '生成中…（深度/思考模型会先思考几秒）',
     freePlaceholder: '随便问：基于当前对话向 AI 提问…',
     ask: '问',
-    shotTitle: '截图框选问视觉模型（拉框选区域，输入框内容作为问题）',
+    shotTitle: '立即截取鼠标所在显示器并提问（输入框内容作为问题，每次点击截取一次）',
+    regionShot: '框选',
+    regionShotTitle: '框选屏幕区域并提问（输入框内容作为问题）',
   },
   status: {
     state: {
@@ -446,7 +448,7 @@ const zh = {
     otherHint:
       '麦克风开关与多模态切换在标题栏；简历/岗位JD 在右栏「📄简历」「📋JD」按会话导入（支持 docx/pdf）。',
     hotkeyToggle: '呼出/隐藏快捷键',
-    hotkeyShot: '截图快捷键（框选截图问答，如 Control+Shift+S）',
+    hotkeyShot: '截图快捷键（单次截取鼠标所在显示器并提问）',
     autoLaunch: '开机自动启动',
     autoLaunchOn: '开启',
     autoLaunchOff: '关闭（默认）',
@@ -565,7 +567,9 @@ const en: Dict = {
     genWaiting: 'Generating… (thinking models pause a few seconds first)',
     freePlaceholder: 'Ask anything about the current conversation…',
     ask: 'Ask',
-    shotTitle: 'Screenshot a region and ask the vision model (input text becomes the question)',
+    shotTitle: 'Capture the display under the pointer once and ask (input text becomes the question)',
+    regionShot: 'Region',
+    regionShotTitle: 'Select a screen region and ask (input text becomes the question)',
   },
   status: {
     state: {
@@ -900,7 +904,7 @@ const en: Dict = {
     otherHint:
       'The mic toggle and Text/Vision live in the title bar; import the resume/JD per session via “📄Resume” “📋JD” in the right pane (docx/pdf supported).',
     hotkeyToggle: 'Show/hide hotkey',
-    hotkeyShot: 'Screenshot hotkey (region screenshot Q&A, e.g. Control+Shift+S)',
+    hotkeyShot: 'Screenshot hotkey (capture the display under the pointer once and ask)',
     autoLaunch: 'Start at login',
     autoLaunchOn: 'On',
     autoLaunchOff: 'Off (default)',
