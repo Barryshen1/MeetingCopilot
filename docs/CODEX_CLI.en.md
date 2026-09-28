@@ -56,6 +56,7 @@ Codex CLI supplies the AI answer backend; it does not transcribe audio. Select a
 - **Not signed in:** run `codex login`, complete sign-in, and refresh status.
 - **Installed and signed in, but the test fails:** read the returned error. Check model access, account allowance, network connectivity, and CLI version. Installation alone does not prove service availability.
 - **Custom model or effort rejected:** choose a model and effort returned by Refresh status, or restore both defaults.
+- **Default model requires a newer CLI:** the default option uses your global CLI configuration. Select a model returned by Refresh status, or update Codex CLI before using the newer model.
 - **Screenshot fails:** verify that the chosen model accepts images and macOS has granted the app screen recording permission.
 - **No transcript:** check ASR and audio input settings separately; a successful Codex test does not test audio capture or transcription.
 
