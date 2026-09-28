@@ -14,7 +14,8 @@ export type { TrayCommand, TrayRendererCommand } from './trayMenu';
 // ---------- Settings ----------
 
 export type AsrLanguage = 'auto' | 'chinese' | 'english';
-export type AnswerLang = 'chinese' | 'english';
+/** Auto follows the language of the current question, or the latest relevant transcript. */
+export type AnswerLang = 'auto' | 'chinese' | 'english';
 /** who is speaking: the other party (system audio) vs the user (microphone) */
 export type Speaker = 'them' | 'me';
 /** answer-body font size (right pane only) */
@@ -161,7 +162,7 @@ export interface SettingsFile {
     codex?: CodexSettings;
     baseUrl: string;
     model: string;
-    /** reply language for AI answers (R: 模式选择); default chinese */
+    /** reply language for AI answers (R: 模式选择); default auto */
     answerLang: AnswerLang;
     /** answer with the vision/multimodal provider instead of the text model */
     answerWithVision?: boolean;

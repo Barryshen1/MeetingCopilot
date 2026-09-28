@@ -1,5 +1,5 @@
 import { createContext, useContext, type ReactNode } from 'react';
-import type { ProviderTestCode, UiLang } from '../shared/protocol';
+import type { AnswerLang, ProviderTestCode, UiLang } from '../shared/protocol';
 
 /**
  * UI language dictionaries (R: 界面语言). Typed nested objects instead of
@@ -50,8 +50,8 @@ const zh = {
     codexVisionOn: '截图开',
     codexVisionOff: '截图关',
     codexVisionTitle: '开启或关闭截图问答；点击回答区的 Codex 模型按钮选择 GPT 模型',
-    answerLang: (en: boolean) => `答:${en ? 'EN' : '中'}`,
-    answerLangTitle: 'AI 回答语言：中/英切换',
+    answerLang: (lang: AnswerLang) => `答:${lang === 'auto' ? '自动' : lang === 'english' ? 'EN' : '中'}`,
+    answerLangTitle: 'AI 回答语言：自动识别提问语言，或固定中文/英文',
     micOn: '🎤录音中',
     micOff: '🎤麦克风',
     micTitle: '麦克风：独立转录你自己的声音（与系统声音互不影响；建议戴耳机避免扬声器回声）',
@@ -403,6 +403,7 @@ const zh = {
       UNKNOWN_ERROR: '复制诊断信息后向我们反馈。',
     } as Record<ProviderTestCode, string>,
     answerLangLabel: 'AI 回答语言',
+    answerLangAuto: '自动检测',
     answerLangZh: '中文',
     answerLangEn: 'English',
     audioSection: '音频设备',
@@ -516,8 +517,8 @@ const en: Dict = {
     codexVisionOn: 'Shots on',
     codexVisionOff: 'Shots off',
     codexVisionTitle: 'Toggle screenshot questions; use the Codex model button in the answer panel to choose a GPT model',
-    answerLang: (en_: boolean) => `A:${en_ ? 'EN' : 'ZH'}`,
-    answerLangTitle: 'AI answer language: Chinese/English',
+    answerLang: (lang: AnswerLang) => `A:${lang === 'auto' ? 'Auto' : lang === 'english' ? 'EN' : 'ZH'}`,
+    answerLangTitle: 'AI answer language: follow the question, or choose Chinese/English',
     micOn: '🎤Rec',
     micOff: '🎤Mic',
     micTitle:
@@ -874,6 +875,7 @@ const en: Dict = {
       UNKNOWN_ERROR: 'Copy the diagnostics and report it to us.',
     },
     answerLangLabel: 'AI answer language',
+    answerLangAuto: 'Auto-detect',
     answerLangZh: 'Chinese',
     answerLangEn: 'English',
     audioSection: 'Audio devices',

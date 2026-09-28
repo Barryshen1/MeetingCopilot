@@ -2,7 +2,7 @@
  * Prompt construction for meeting/interview answering (pure logic, TDD).
  * R4: (a) manual — answer THIS sentence; (b) continuous — advise on recent
  * speech; (c) free — ask over the conversation; (d) translate — translate a
- * line to Chinese. Answer language (zh/en) is a runtime prompt hook.
+ * line to Chinese. Answer language (auto/zh/en) is a runtime prompt hook.
  *
  * v2 (2026-07-10): cache-friendly three-layer layout —
  *   stable prefix  = persona + 【简历】 + 【岗位JD】 + lang directive
@@ -11,20 +11,27 @@
  *   fast context   = history turns + recent transcript + this question + hint
  */
 import type { ChatMessage } from './adapter';
-import type { ScreenshotMode } from '../../shared/protocol';
+import type { AnswerLang, ScreenshotMode } from '../../shared/protocol';
 import { classifyQuestion, isLikelyQuestion, type QuestionKind } from '../../shared/textHeuristics';
 
 export { isLikelyQuestion, classifyQuestion };
 
 export const MAX_CONTEXT_CHARS = 2400;
 
-export type AnswerLang = 'chinese' | 'english';
+export type { AnswerLang } from '../../shared/protocol';
 
 /** The prompt hook that steers DeepSeek's reply language (R: 模式选择). */
 export function langDirective(lang: AnswerLang): string {
-  return lang === 'english'
-    ? '- 用【英文】输出我要念的话；必要时在最后附一句极简中文备注。'
-    : '- 用【中文】输出。';
+  switch (lang) {
+    case 'auto':
+      return '- 自动匹配回答语言：有本轮明确提问时，使用该提问的主要自然语言；否则使用最近一条有实际内容的对话转录的语言。不要根据本提示、简历、岗位JD、备忘、历史回答或固定的中文引导语选择语言；无法判断时用中文。';
+    case 'english':
+      return '- 用【英文】输出我要念的话；必要时在最后附一句极简中文备注。';
+    case 'chinese':
+      return '- 用【中文】输出。';
+    default:
+      return '- 用【中文】输出。';
+  }
 }
 
 /** teleprompter persona: the output IS what the user reads aloud, verbatim */
@@ -183,7 +190,7 @@ export interface AnswerPromptInput {
   mode: 'segment' | 'continuous' | 'free' | 'translate';
   /** free-form user question (mode === 'free') */
   freeQuestion?: string;
-  /** reply language for segment/continuous/free (default chinese) */
+  /** reply language for segment/continuous/free (default chinese for direct callers) */
   answerLang?: AnswerLang;
   /** prior Q&A turns for a coherent session (oldest first) */
   history?: ChatMessage[];
@@ -232,18 +239,50 @@ export function buildVisionMessages(
   imageDataUrl: string,
   background?: string,
   screenshotMode: ScreenshotMode = 'general',
+  answerLang: AnswerLang = 'chinese',
 ): ChatMessage[] {
   const bg = (background ?? '').trim();
   const codingTest = screenshotMode === 'coding-test';
+  const questionText = question.trim();
+  // For a screenshot-only request, a generated Chinese user turn can override
+  // the language visible in the image. Let the image be the whole user turn.
+  if (answerLang === 'auto') {
+    const languageRule = 'Use the main natural language of the user\'s typed question, if it contains one. Otherwise, use the main natural language of the problem statement or body text visible in the image. A programming language name alone (such as Python or C++), code, and symbols do not determine the answer language. Ignore UI text, reference material, and the language of these instructions. If the source language is unclear, use Chinese.';
+    const task = codingTest
+      ? [
+          'You are a coding test assistant. Read the problem visible in the screenshot and any question the user typed.',
+          'Identify the task, input, output, constraints, and examples. If the screenshot is incomplete or unclear, state what is visible and any necessary assumptions; do not invent conditions.',
+          'By default, provide a complete solution: core idea, correctness, code ready to submit, time and space complexity, and important edge cases. Follow a narrower scope if the user asks for one.',
+          'Use Python 3 by default unless the problem or user specifies another programming language. Follow the required function signature or standard input/output format. Preserve code indentation and do not claim to have run the code.',
+          languageRule,
+        ].join('\n')
+      : [
+          'You are a meeting assistant. Read the screenshot and answer the user\'s question. If there is no typed question, explain the main point of the visible content and suggest a useful response.',
+          'For a question or problem in the image, give a concise answer or solution outline.',
+          bg ? `Reference material (use when relevant):\n${bg.slice(0, MAX_BACKGROUND_CHARS)}\nEnd of reference material.` : '',
+          languageRule,
+        ].filter(Boolean).join('\n');
+    return [
+      { role: 'system', content: task },
+      {
+        role: 'user',
+        content: [
+          { type: 'image_url', image_url: { url: imageDataUrl } },
+          ...(questionText ? [{ type: 'text' as const, text: questionText }] : []),
+        ],
+      },
+    ];
+  }
+  const screenshotLanguageDirective = answerLang === 'english' ? 'Answer in English.' : '用中文回答。';
   const sys = codingTest
     ? [
-        '你是编程测试题助手。根据截图中可见的题目和用户补充的问题作答，解释使用中文。',
+        `你是编程测试题助手。根据截图中可见的题目和用户补充的问题作答，${screenshotLanguageDirective}`,
         '先识别题意、输入输出、约束和样例。截图模糊、内容不完整或没有编程题时，明确指出可见内容和必要假设，不要编造题目条件。',
         '默认给出完整解法：核心思路、正确性依据、可直接提交的代码、时间复杂度、空间复杂度，以及关键边界情况；用户明确要求其他回答范围时，按用户的问题作答。',
         '默认使用 Python 3；如果题目或用户明确指定其他语言，就使用指定语言。按照题目要求选择函数签名或标准输入输出形式。',
         '代码保留缩进，不要声称已经运行或通过测试。',
       ].join('\n')
-    : '你是会议助手。用户发来一张屏幕截图（通常是对方共享的 PPT/文档或一道题目）。用中文简明回答用户关于截图的问题；若是提问/题目，给出用户可以直接说的回答要点或解题思路。' +
+    : `你是会议助手。用户发来一张屏幕截图（通常是对方共享的 PPT/文档或一道题目）。${screenshotLanguageDirective}简明回答用户关于截图的问题；若是提问/题目，给出用户可以直接说的回答要点或解题思路。` +
       (bg
         ? `\n\n===== 本人资料与知识库（作答时优先采用） =====\n${bg.slice(0, MAX_BACKGROUND_CHARS)}\n===== 资料结束 =====`
         : '');
@@ -283,6 +322,14 @@ export function buildAnswerMessages(input: AnswerPromptInput): ChatMessage[] {
     if (jd) refs.push(`【岗位JD】\n${jd.slice(0, MAX_BACKGROUND_CHARS)}`);
     if (context.length) refs.push(`【最近的对话转录】\n${context.join('\n')}`);
     const msgs: ChatMessage[] = [];
+    // Auto keeps a free question as a raw model request; the model follows its
+    // natural language. With other material present, prevent that material's
+    // language from overriding the current question. Explicit choices win.
+    if (input.answerLang && lang !== 'auto') {
+      msgs.push({ role: 'system', content: lang === 'english' ? 'Reply in English.' : '用中文回答。' });
+    } else if (lang === 'auto' && (refs.length || input.history?.length)) {
+      msgs.push({ role: 'system', content: 'Reply in the main natural language of the current user question. Ignore the language of reference material and previous turns; if unclear, use Chinese.' });
+    }
     if (refs.length) {
       msgs.push({ role: 'system', content: `以下资料供参考（可用可不用）：\n\n${refs.join('\n\n')}` });
     }

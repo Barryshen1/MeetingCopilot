@@ -150,6 +150,46 @@ describe('buildAnswerMessages', () => {
     });
     expect(enCont[0].content).toContain('【英文】');
   });
+
+  it('auto answer language follows the current question before older context or resume', () => {
+    const msgs = buildAnswerMessages({
+      mode: 'segment',
+      question: 'What was the biggest challenge?',
+      recentTranscript: ['你们的团队有多少人？', 'What was the biggest challenge?'],
+      resume: '我的中文简历',
+      history: [{ role: 'assistant', content: '上一轮的中文回答' }],
+      answerLang: 'auto',
+    });
+    const sys = msgs[0].content as string;
+    expect(sys).toContain('本轮明确提问');
+    expect(sys).toContain('最近一条');
+    expect(sys).toContain('不要根据本提示、简历');
+    expect(sys).not.toContain('- 用【中文】输出');
+    expect(msgs[msgs.length - 1].content).toContain('What was the biggest challenge?');
+  });
+
+  it('auto continuous mode without a question uses recent transcript language', () => {
+    const msgs = buildAnswerMessages({
+      mode: 'continuous',
+      recentTranscript: ['你们好。', 'Could you explain the architecture?'],
+      answerLang: 'auto',
+    });
+    expect(msgs[0].content).toContain('最近一条有实际内容的对话转录');
+    expect(msgs[msgs.length - 1].content).toContain('Could you explain the architecture?');
+  });
+
+  it('free mode uses the current question language despite Chinese reference material', () => {
+    const msgs = buildAnswerMessages({
+      mode: 'free',
+      freeQuestion: 'Summarize the discussion.',
+      recentTranscript: ['这是中文会议转录'],
+      background: '中文资料',
+      answerLang: 'auto',
+    });
+    expect(msgs[0].content).toContain('current user question');
+    expect(msgs[msgs.length - 1].content).toBe('Summarize the discussion.');
+    expect(JSON.stringify(msgs)).not.toContain('实时面试提词器');
+  });
 });
 
 describe('isLikelyQuestion (continuous-mode gate)', () => {
@@ -273,6 +313,16 @@ describe('buildStablePrefix (prefix-cache friendliness)', () => {
       answerLang: 'english',
     });
     expect(msgs[0].content).toBe(prefix);
+  });
+  it('keeps the auto-language prefix identical for prewarm and real answers', () => {
+    const prefix = buildStablePrefix('简历', 'JD', 'auto');
+    const warm = buildPrewarmMessages(prefix);
+    const real = buildAnswerMessages({
+      mode: 'segment', question: 'Explain your design.', recentTranscript: [],
+      resume: '简历', jd: 'JD', answerLang: 'auto',
+    });
+    expect(warm[0].content).toBe(real[0].content);
+    expect(prefix).toContain('自动匹配回答语言');
   });
   it('gives the full budget to a lone slot', () => {
     const huge = 'B'.repeat(20000);
@@ -407,9 +457,11 @@ describe('toProxyRules', () => {
 
 describe('langDirective', () => {
   it('produces a distinct hook per language', () => {
+    expect(langDirective('auto')).toContain('自动匹配回答语言');
     expect(langDirective('chinese')).toContain('中文');
     expect(langDirective('english')).toContain('英文');
     expect(langDirective('chinese')).not.toBe(langDirective('english'));
+    expect(langDirective('auto')).not.toBe(langDirective('chinese'));
   });
 });
 
@@ -432,6 +484,11 @@ describe('buildTranslateMessages / translate mode', () => {
     // no transcript context leaks into a translation request
     expect(JSON.stringify(msgs)).not.toContain('irrelevant context');
     expect(msgs[1].content).toBe('Hello world');
+    expect(msgs[0].content).toContain('简体中文');
+  });
+
+  it('translate remains Chinese in auto answer-language mode', () => {
+    const msgs = buildAnswerMessages({ mode: 'translate', question: 'Hello', recentTranscript: [], answerLang: 'auto' });
     expect(msgs[0].content).toContain('简体中文');
   });
 });
@@ -485,6 +542,37 @@ describe('buildVisionMessages', () => {
     const msgs = buildVisionMessages(question, 'data:image/png;base64,AAA', undefined, 'coding-test');
     const content = msgs[1].content as Array<{ type: string; text?: string }>;
     expect(content[1]).toEqual({ type: 'text', text: question.trim() });
+  });
+
+  it('auto screenshot language follows visible task text when the question is blank', () => {
+    for (const mode of ['general', 'coding-test'] as const) {
+      const msgs = buildVisionMessages('', 'data:image/png;base64,AAA', undefined, mode, 'auto');
+      const system = msgs[0].content as string;
+      expect(system).toContain('use the main natural language of the problem statement or body text visible in the image');
+      expect(system).toContain('Ignore UI text, reference material, and the language of these instructions');
+      const content = msgs[1].content as Array<{ type: string; text?: string }>;
+      expect(content).toHaveLength(1);
+      expect(content[0].type).toBe('image_url');
+    }
+  });
+
+  it('auto screenshot language prioritizes the typed question over screenshot language', () => {
+    const msgs = buildVisionMessages('Explain this in English.', 'data:image/png;base64,AAA', undefined, 'coding-test', 'auto');
+    expect(msgs[0].content).toContain('Use the main natural language of the user\'s typed question');
+    expect((msgs[1].content as Array<{ text?: string }>)[1].text).toBe('Explain this in English.');
+  });
+
+  it('auto screenshot language ignores a typed programming-language name as a language cue', () => {
+    const msgs = buildVisionMessages('Python', 'data:image/png;base64,AAA', undefined, 'coding-test', 'auto');
+    expect(msgs[0].content).toContain('A programming language name alone (such as Python or C++)');
+    expect(msgs[0].content).toContain('use the main natural language of the problem statement or body text visible in the image');
+  });
+
+  it('explicit English still steers both screenshot modes', () => {
+    for (const mode of ['general', 'coding-test'] as const) {
+      const msgs = buildVisionMessages('', 'data:image/png;base64,AAA', undefined, mode, 'english');
+      expect(msgs[0].content).toContain('Answer in English.');
+    }
   });
 });
 

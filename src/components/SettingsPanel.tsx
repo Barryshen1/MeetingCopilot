@@ -694,6 +694,7 @@ export function SettingsPanel({
           ariaLabel={t.settings.answerLangLabel}
           onChange={(value) => setAnswerLang(value as AnswerLang)}
           options={[
+            { value: 'auto', label: t.settings.answerLangAuto },
             { value: 'chinese', label: t.settings.answerLangZh },
             { value: 'english', label: t.settings.answerLangEn },
           ]}

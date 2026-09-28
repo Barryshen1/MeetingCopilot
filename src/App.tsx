@@ -104,7 +104,7 @@ export function App() {
   const e2eSamples = useRef<number[]>([]);
   const sessionsRef = useRef<StoredSession[]>([]);
   const currentIdRef = useRef<string>('');
-  const answerLangRef = useRef<AnswerLang>('chinese');
+  const answerLangRef = useRef<AnswerLang>('auto');
   const loaded = useRef(false);
 
   // UI language: settings-driven; ref mirror so stable callbacks stay fresh
@@ -533,15 +533,26 @@ export function App() {
     }
   }, []);
 
-  const toggleAnswerLang = useCallback(async () => {
-    if (!settings) return;
-    const next: AnswerLang = settings.llm.answerLang === 'chinese' ? 'english' : 'chinese';
-    answerLangRef.current = next;
-    const updated = await window.mc.setSettings({ llm: { answerLang: next } });
-    setSettings(updated);
-    answerLangRef.current = updated.llm.answerLang;
-    prewarm(false); // lang is part of the stable prefix → mark dirty / reheat
-  }, [settings, prewarm]);
+  const updateAnswerLang = useCallback(async (answerLang: AnswerLang) => {
+    const previous = settingsRef.current;
+    if (!previous || previous.llm.answerLang === answerLang) return;
+    const next = { ...previous, llm: { ...previous.llm, answerLang } };
+    answerLangRef.current = answerLang;
+    settingsRef.current = next;
+    setSettings(next);
+    try {
+      const saved = await window.mc.setSettings({ llm: { answerLang } });
+      settingsRef.current = saved;
+      setSettings(saved);
+      answerLangRef.current = saved.llm.answerLang;
+      prewarm(false); // language is part of the stable prefix
+    } catch (error) {
+      settingsRef.current = previous;
+      setSettings(previous);
+      answerLangRef.current = previous.llm.answerLang;
+      console.error('[ui] answer language save failed:', error);
+    }
+  }, [prewarm]);
 
   const toggleAnswerModel = useCallback(async () => {
     if (!settings) return;
@@ -792,9 +803,17 @@ export function App() {
               ? settings.llm.answerWithVision ? t.titlebar.codexVisionOn : t.titlebar.codexVisionOff
               : settings?.llm.answerWithVision ? t.titlebar.vision : t.titlebar.textOnly}
           </button>
-          <button className="btn" onClick={() => void toggleAnswerLang()} title={t.titlebar.answerLangTitle}>
-            {t.titlebar.answerLang(settings?.llm.answerLang === 'english')}
-          </button>
+          <InWindowSelect
+            className="mic-select"
+            value={settings?.llm.answerLang ?? 'auto'}
+            onChange={(value) => void updateAnswerLang(value as AnswerLang)}
+            ariaLabel={t.titlebar.answerLangTitle}
+            options={[
+              { value: 'auto', label: t.titlebar.answerLang('auto') },
+              { value: 'chinese', label: t.titlebar.answerLang('chinese') },
+              { value: 'english', label: t.titlebar.answerLang('english') },
+            ]}
+          />
           <button
             className={micActive ? 'btn btn-live' : 'btn'}
             onClick={() => void toggleMicCapture()}

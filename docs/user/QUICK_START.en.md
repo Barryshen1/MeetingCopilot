@@ -92,7 +92,7 @@ Other title-bar controls:
 
 | Button | What it does |
 |---|---|
-| `A:ZH` / `A:EN` | Language the AI answers in |
+| `A:Auto` / `A:ZH` / `A:EN` | Answer in the question's language automatically, or always in Chinese or English |
 | `Text` / `Vision` | Answer with the text LLM, or with the vision model (screenshot Q&A) |
 | `🎤Mic` | Transcribe your own voice separately |
 | `Stealth:On/Off` | Hides the window from recording / sharing / screenshots (Windows; best-effort on macOS) |

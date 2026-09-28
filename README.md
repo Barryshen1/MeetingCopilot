@@ -87,7 +87,7 @@ You can reopen the wizard any time from *⚙ Settings → Run the setup wizard a
 
 - 🎧 **Hears the other side directly — no meeting bot.** Windows captures system loopback audio. macOS uses a selectable audio input (choose a virtual device such as BlackHole for meeting/system audio). An independent microphone channel transcribes your own voice separately.
 - ⚡ **Four switchable ASR backend families** — local sidecars (FunASR by default; experimental MOSS-Transcribe 0.9B), local Whisper turbo (offline fallback, DirectML GPU), Alibaba Cloud `fun-asr-realtime`, and MiMo per-segment. FunASR provides live partials; MOSS emits a finalized utterance after a pause.
-- 🌍 **Bilingual (zh / en) out of the box** — the ASR detects Chinese↔English switches automatically mid-meeting, with no settings to touch; one click on the answer-language toggle (`A:EN`) and the teleprompter output flips to English too. Built for English interviews and code-switching conversations.
+- 🌍 **Bilingual (zh / en) out of the box** — ASR detects Chinese↔English switches mid-meeting. Set answer language to `A:Auto` to follow each question, or choose `A:ZH` / `A:EN` for a fixed language.
 - 🌐 **Fully English or Chinese interface** — every label, tooltip, dialog and status message is available in both languages. Switch under *Settings → Appearance → UI Language*; first launch follows your OS language automatically. UI language and answer language are independent, so you can run an English UI while reading Chinese answers, or vice versa.
 - 🧠 **First-person teleprompter answers** — bring your own key, any OpenAI-compatible LLM (DeepSeek recommended). Answers are written to be read aloud verbatim: conclusion first, then 2-3 short points; STAR for behavioral questions; idea → key points → complexity for technical ones. Never invents experience beyond your resume.
 - 📄 **Per-session resume + JD slots** — import `.md/.txt/.docx/.pdf`; parsing is local and deterministic, nothing gets uploaded. Question-type detection (behavioral / technical / smalltalk) appends a zero-latency answering hint.
@@ -113,7 +113,7 @@ You can reopen the wizard any time from *⚙ Settings → Run the setup wizard a
 
 ![Bilingual demo: automatic zh/en switching](docs/demo-bilingual.gif)
 
-*A Chinese question, then an English one — same session, nothing reconfigured. The local ASR picks up the language switch automatically (both at ~1.6 s), and after one click on `答:EN` the answer streams out in English, still grounded in the same resume.*
+*A Chinese question, then an English one in the same session. The local ASR picks up the language switch automatically (both at ~1.6 s). This demo used fixed English (`答:EN`); `答:自动` now follows each question's language.*
 
 ![bilingual answer](docs/bilingual.png)
 

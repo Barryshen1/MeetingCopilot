@@ -60,6 +60,17 @@ describe('SettingsStore', () => {
     expect(store.getPublic().llm.verification).toBeUndefined();
   });
 
+  it('persists auto answer language without changing the Codex connection', () => {
+    const store = new SettingsStore(file, fakeCipher);
+    store.applyPatch({ llm: { backend: 'codex-cli', answerLang: 'english' } });
+    store.recordVerification('llm', { lastTestOk: true });
+    store.applyPatch({ llm: { answerLang: 'auto' } });
+    const reloaded = new SettingsStore(file, fakeCipher);
+    expect(reloaded.getPublic().llm.answerLang).toBe('auto');
+    expect(reloaded.getPublic().llm.backend).toBe('codex-cli');
+    expect(reloaded.getPublic().llm.verification?.lastTestOk).toBe(true);
+  });
+
   it('preserves verification for equivalent CLI defaults and unused API settings', () => {
     const store = new SettingsStore(file, fakeCipher);
     store.applyPatch({ llm: { backend: 'codex-cli', codex: { binaryPath: '', model: '', reasoningEffort: undefined } } });
@@ -85,7 +96,7 @@ describe('SettingsStore', () => {
     const s = new SettingsStore(file, fakeCipher);
     expect(s.data).toEqual(defaultSettings());
     expect(s.data.llm.model).toBe('deepseek-chat');
-    expect(s.data.llm.answerLang).toBe('chinese');
+    expect(s.data.llm.answerLang).toBe('auto');
     expect(s.data.ui.stealth).toBe(true);
     expect(s.data.ui.screenshotMode).toBe('general');
     expect(s.getPublic().ui.screenshotMode).toBe('general');

@@ -1180,7 +1180,9 @@ function bootstrap(): void {
       imgP
         .then((dataUrl) => {
           const background = screenshotMode === 'coding-test' ? undefined : payload.background || knowledge.text;
-          const messages = buildVisionMessages(payload.question, dataUrl, background, screenshotMode);
+          const messages = buildVisionMessages(
+            payload.question, dataUrl, background, screenshotMode, settings.data.llm.answerLang,
+          );
           if (textLlm.usesCodex) {
             return textLlm.stream(messages, {
               onDelta: (text) => sendEv({ requestId: payload.requestId, kind: 'delta', text }),
