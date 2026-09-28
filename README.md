@@ -122,6 +122,7 @@ You can reopen the wizard any time from *⚙ Settings → Run the setup wizard a
 | Backend | Latency | Cost | Privacy | Notes |
 |---|---|---|---|---|
 | Aliyun `fun-asr-realtime` *(recommended for packaged users)* | best | pay-per-use | cloud | word-by-word streaming, server-side punctuation, nothing to install |
+| Alibaba Cloud Singapore `qwen-audio-3.1-asr-flash-streaming` | live; network-dependent | free quota, then pay-per-use | cloud | Auto-detects Chinese and English; requires a Singapore general-purpose API key and workspace WebSocket URL |
 | MiMo per-segment | ~1 s/seg | pay-per-use | cloud | simple per-utterance cloud ASR; one key can also serve the answers |
 | **Local FunASR streaming** *(default when running from source)* | ~1.2–1.8 s | free | ✅ fully local | `Fun-ASR-Nano` (zh+en, punctuation) or `paraformer` true streaming (zh-only, snappier subtitles) |
 | MOSS-Transcribe-Diarize 0.9B *(experimental)* | finalized after a pause | free | ✅ fully local | 50+ languages, hotwords, long-form diarization; live mode consumes transcript text only |
@@ -177,6 +178,7 @@ Place [`onnx-community/whisper-large-v3-turbo-ONNX`](https://huggingface.co/onnx
 ### Cloud endpoints
 
 - **Aliyun DashScope**: endpoint `wss://dashscope.aliyuncs.com/api-ws/v1/inference`, model `fun-asr-realtime` or `paraformer-realtime-v2`.
+- **Alibaba Cloud Singapore**: model `qwen-audio-3.1-asr-flash-streaming`. Prefer the dedicated `wss://{WorkspaceId}.ap-southeast-1.maas.aliyuncs.com/api-ws/v1/inference` URL shown in the Model Studio API example, with a general-purpose API key from the same region; see the [WebSocket guide](https://www.alibabacloud.com/help/en/model-studio/fun-asr-realtime-websocket-api). “Free Quota Only” in Model Studio stops calls when the quota is exhausted.
 - **MiMo**: `https://api.xiaomimimo.com/v1`, model `mimo-v2.5-asr`.
 
 ## Privacy

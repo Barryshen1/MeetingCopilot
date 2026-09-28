@@ -122,6 +122,7 @@
 | 后端 | 延迟 | 费用 | 隐私 | 说明 |
 |---|---|---|---|---|
 | 阿里云 `fun-asr-realtime`（**安装包用户推荐**） | 最佳 | 按量 | 云端 | 逐字流式，服务端断句带标点，零安装 |
+| 阿里云新加坡 `qwen-audio-3.1-asr-flash-streaming` | 实时，因网络而异 | 免费额度内免费；之后按量 | 云端 | 中英文自动识别；需新加坡地域通用 API Key 和工作空间 WebSocket 地址 |
 | MiMo 按段 | ~1 s/段 | 按量 | 云端 | 简单的按句云端转录；同一个 Key 还能兼顾 AI 回答 |
 | **本地 FunASR 流式**（源码运行时的默认值） | ~1.2–1.8 s | 免费 | ✅ 完全本地 | `Fun-ASR-Nano`（中英双优+标点）或 `paraformer` 真流式（纯中文，字幕更跟手） |
 | MOSS-Transcribe-Diarize 0.9B（实验） | 停顿后整句 | 免费 | ✅ 完全本地 | 50+ 语言、热词、长会议/说话人分离能力；本应用实时模式只取转写文本 |
@@ -173,6 +174,7 @@ MOSS 是整段生成模型，不是原生流式 ASR。本应用会在一句话�
 ### 云端接入地址
 
 - **阿里云百炼**：地址 `wss://dashscope.aliyuncs.com/api-ws/v1/inference`，模型 `fun-asr-realtime` 或 `paraformer-realtime-v2`。
+- **阿里云百炼新加坡**：模型 `qwen-audio-3.1-asr-flash-streaming`。建议使用百炼 API 示例中的 `wss://{WorkspaceId}.ap-southeast-1.maas.aliyuncs.com/api-ws/v1/inference`，并在设置的「云端流式」中填入同地域通用 API Key；[WebSocket 文档](https://www.alibabacloud.com/help/en/model-studio/fun-asr-realtime-websocket-api)。百炼控制台的「免费额度用完即停」可避免额度耗尽后继续计费。
 - **MiMo**：`https://api.xiaomimimo.com/v1`，模型 `mimo-v2.5-asr`。
 
 ## 隐私

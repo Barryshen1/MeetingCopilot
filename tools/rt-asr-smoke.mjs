@@ -19,6 +19,7 @@ const workerPath = join(root, 'out', 'main', 'asrWorker.js');
 const KEY = process.env.MC_RT_KEY;
 const URL_ = process.env.MC_RT_URL;
 const MODEL = process.env.MC_RT_MODEL || 'fun-asr-realtime';
+const FRAME_WAIT_MS = Number(process.env.MC_RT_FRAME_MS || 25);
 
 function fail(msg) {
   console.error(`SMOKE_FAIL: ${msg}`);
@@ -60,18 +61,18 @@ worker.on('error', (e) => fail(`worker crashed: ${e.message}`));
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-/** feed a clip in 100 ms frames at ~4x real-time + trailing silence */
+/** Feed 100 ms frames; set MC_RT_FRAME_MS=100 for a real-time service test. */
 async function feed(pcm, channel) {
   const FRAME = 1600; // 100 ms
   for (let off = 0; off < pcm.length; off += FRAME) {
     const frame = pcm.slice(off, Math.min(off + FRAME, pcm.length));
     worker.postMessage({ type: 'pcm', pcm: frame, captureTs: Date.now(), channel });
-    await sleep(25); // 4x real-time
+    await sleep(FRAME_WAIT_MS);
   }
   // 1.2 s of trailing silence so the service can endpoint the last sentence
   for (let i = 0; i < 12; i++) {
     worker.postMessage({ type: 'pcm', pcm: new Float32Array(FRAME), captureTs: Date.now(), channel });
-    await sleep(25);
+    await sleep(FRAME_WAIT_MS);
   }
 }
 

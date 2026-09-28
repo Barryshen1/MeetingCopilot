@@ -11,8 +11,8 @@
  * Rules:
  *  - preset ids are STABLE identifiers persisted in settings (`providerId` is
  *    the coarse provider, the preset id is only a UI selection key);
- *  - never match a provider by URL substring — match the exact baseUrl+model
- *    pair via {@link findPresetByEndpoint};
+ *  - never match a provider by URL substring — match an exact endpoint+model
+ *    pair, or the strict Singapore workspace-domain alias below;
  *  - every URL here must be https and its hostname must appear in
  *    {@link EXTERNAL_LINK_ALLOWED_HOSTS} (the main process refuses to open
  *    anything else).
@@ -86,7 +86,9 @@ export const EXTERNAL_LINK_ALLOWED_HOSTS: readonly string[] = [
   'api-docs.deepseek.com',
   'bailian.console.aliyun.com',
   'modelstudio.console.aliyun.com',
+  'modelstudio.console.alibabacloud.com',
   'help.aliyun.com',
+  'www.alibabacloud.com',
   'platform.xiaomimimo.com',
   'mimo.mi.com',
   'aistudio.google.com',
@@ -171,32 +173,27 @@ const aliyunCnHelp: ProviderHelp = {
   billingHintEn: 'Alibaba Cloud bills you by usage. MeetingCopilot never collects any fee.',
 };
 
-/**
- * International Model Studio. No preset ships in Phase 2: its realtime ASR
- * WebSocket endpoint is unverified and the CN endpoint must stay the default.
- * The help entry exists so the wizard can still point INTL users at the right
- * console.
- */
+/** International Model Studio uses a Singapore-region key and WebSocket URL. */
 const aliyunIntlHelp: ProviderHelp = {
-  platformUrl: 'https://modelstudio.console.aliyun.com/?tab=playground',
-  keyUrl: 'https://modelstudio.console.aliyun.com/?tab=playground',
-  docsUrl: 'https://help.aliyun.com/zh/model-studio/get-api-key',
+  platformUrl: 'https://modelstudio.console.alibabacloud.com/ap-southeast-1/model/market/detail/qwen-audio-3.1-asr-flash-streaming?serviceSite=international',
+  keyUrl: 'https://modelstudio.console.alibabacloud.com/ap-southeast-1/settings/api-key',
+  docsUrl: 'https://www.alibabacloud.com/help/en/model-studio/fun-asr-realtime-websocket-api',
   stepsZh: [
-    '打开阿里云国际站 Model Studio 控制台（modelstudio.console.aliyun.com）。',
-    '使用阿里云国际站账号登录并开通 Model Studio。',
-    '在控制台的 API-KEY 页面创建一个 API Key 并复制。',
-    '国际站的实时语音识别接入地址与中国大陆站不同，目前仍在验证中（Beta）。',
-    '如需稳定的实时字幕，建议先使用中国大陆站账号。',
+    '打开阿里云国际站 Model Studio，并将地域切换到新加坡。',
+    '在工作空间开通 Qwen-Audio-3.1-ASR-Flash-Streaming；复制 API 示例中的专属 WebSocket 地址。',
+    '在同一地域创建通用 API Key；Token Plan 专用 Key 不使用此模型的免费额度。',
+    '在 MeetingCopilot 选择此模型，填入专属 WebSocket 地址和 API Key，然后测试连接。',
+    '如只想使用免费额度，请在百炼模型页面保留「免费额度用完即停」。',
   ],
   stepsEn: [
-    'Open the international Model Studio console (modelstudio.console.aliyun.com).',
-    'Sign in with an Alibaba Cloud international account and activate Model Studio.',
-    'Create an API key on the API-KEY page and copy it.',
-    'The international realtime ASR endpoint differs from the mainland one and is still being verified (Beta).',
-    'For dependable live captions, prefer a mainland (cn) account for now.',
+    'Open Alibaba Cloud Model Studio and select the Singapore region.',
+    'Enable Qwen-Audio-3.1-ASR-Flash-Streaming in your workspace and copy its dedicated WebSocket URL from the API example.',
+    'Create a general-purpose API key in the same region; a Token Plan key does not use this model\'s free quota.',
+    'Select this model in MeetingCopilot, enter the dedicated WebSocket URL and API key, then test the connection.',
+    'If you only want the free quota, keep “Free Quota Only” enabled on the model page.',
   ],
-  billingHintZh: '费用由阿里云国际站按用量收取，MeetingCopilot 不代收任何费用。',
-  billingHintEn: 'Alibaba Cloud International bills you by usage. MeetingCopilot never collects any fee.',
+  billingHintZh: '阿里云国际站按其额度和价格计费；开启「免费额度用完即停」可避免超额计费。',
+  billingHintEn: 'Alibaba Cloud International applies its quota and pricing; “Free Quota Only” stops usage when the quota is exhausted.',
 };
 
 const mimoHelp: ProviderHelp = {
@@ -366,6 +363,21 @@ export const PROVIDER_PRESETS: readonly ProviderPreset[] = [
     region: 'cn',
     help: aliyunCnHelp,
   },
+  {
+    id: 'aliyun.intl.asr.qwen-audio-3.1-flash-streaming',
+    providerId: 'aliyun-dashscope-intl',
+    capability: 'asr-realtime',
+    nameZh: '阿里云新加坡 Qwen-Audio 3.1 流式',
+    nameEn: 'Alibaba Cloud Singapore Qwen-Audio 3.1 streaming',
+    descriptionZh: '中英文自动识别；建议填写工作空间专属 WebSocket 地址。',
+    descriptionEn: 'Auto-detects Chinese and English; enter your workspace WebSocket URL.',
+    // The generic endpoint remains supported. The user can replace it with a
+    // workspace endpoint without publishing their workspace ID in this repo.
+    baseUrl: 'wss://dashscope-intl.aliyuncs.com/api-ws/v1/inference',
+    model: 'qwen-audio-3.1-asr-flash-streaming',
+    region: 'intl',
+    help: aliyunIntlHelp,
+  },
   // ---- segment (non-streaming) ASR ----
   {
     id: 'mimo.asr.segment',
@@ -461,9 +473,8 @@ export function findPresetById(id: string): ProviderPreset | undefined {
 
 /**
  * Exact baseUrl+model match (trailing slashes and case on the URL are
- * normalised; the model is compared verbatim). Deliberately NOT a substring or
- * hostname match — `https://evil.example/api.deepseek.com/v1` must not resolve
- * to DeepSeek.
+ * normalised; the model is compared verbatim). Qwen's dedicated Singapore
+ * workspace URL is a strict alias. Never use substring hostname matching.
  */
 export function findPresetByEndpoint(
   baseUrl: string | undefined,
@@ -476,8 +487,17 @@ export function findPresetByEndpoint(
     (p) =>
       (capability === undefined || p.capability === capability) &&
       p.baseUrl !== '' &&
-      normalizeBaseUrl(p.baseUrl) === url &&
+      (normalizeBaseUrl(p.baseUrl) === url ||
+        (p.id === 'aliyun.intl.asr.qwen-audio-3.1-flash-streaming' &&
+          isSingaporeWorkspaceAsrUrl(url))) &&
       p.model === model,
+  );
+}
+
+/** A dedicated Singapore endpoint is an alias for the Qwen ASR preset. */
+function isSingaporeWorkspaceAsrUrl(url: string): boolean {
+  return /^wss:\/\/[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.ap-southeast-1\.maas\.aliyuncs\.com\/api-ws\/v1\/inference$/.test(
+    normalizeBaseUrl(url),
   );
 }
 

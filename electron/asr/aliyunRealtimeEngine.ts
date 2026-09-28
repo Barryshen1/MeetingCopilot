@@ -1,6 +1,6 @@
 /**
- * Aliyun DashScope streaming ASR engine (`fun-asr-realtime` /
- * `paraformer-realtime-v2`): true duplex streaming over WebSocket — audio
+ * Aliyun DashScope streaming ASR engine (`qwen-audio-3.1-asr-flash-streaming` /
+ * `fun-asr-realtime` / `paraformer-realtime-v2`): duplex WebSocket — audio
  * frames go up continuously, partial + final sentences come back as
  * `result-generated` events (the service does its own sentence endpointing).
  *
@@ -13,7 +13,7 @@
  * Auth: `Authorization: Bearer <key>` on the WS handshake (needs the `ws`
  * package — Node's built-in WebSocket cannot set headers).
  *
- * China-direct, no proxy. The local VAD stays the privacy/cost gate: a
+ * Region-direct, no proxy. The local VAD stays the privacy/cost gate: a
  * session only exists while someone is speaking (plus a short tail).
  */
 import { randomUUID } from 'crypto';
@@ -71,15 +71,19 @@ export function parseServerEvent(data: string): ServerEvent | null {
   }
 }
 
-const FINISH_TIMEOUT_MS = 5000;
+const FINISH_TIMEOUT_MS = 10_000;
 
 class AliyunRtSession implements StreamingSession {
   private ws: WebSocket;
   private readonly taskId = randomUUID();
   private started = false;
   private dead = false;
+  private finishRequested = false;
+  private finishSent = false;
   private pending: Buffer[] = [];
   private finishResolve: (() => void) | null = null;
+  private finishPromise: Promise<void> | null = null;
+  private finishTimer: NodeJS.Timeout | null = null;
 
   constructor(
     cfg: CloudAsrConfig,
@@ -118,11 +122,16 @@ class AliyunRtSession implements StreamingSession {
       const kind = ev?.header?.event;
       if (!kind) return;
       if (kind === 'task-started') {
+        if (this.dead) return;
         this.started = true;
         this.cb.onReady?.();
         for (const b of this.pending) this.ws.send(b);
         this.pending = [];
+        // A short one-shot clip may ask to close while the handshake is still
+        // in flight. Flush its buffered audio before ending the task.
+        if (this.finishRequested) this.sendFinish();
       } else if (kind === 'result-generated') {
+        if (this.dead) return;
         const s = ev!.payload?.output?.sentence;
         if (!s || s.heartbeat) return;
         const text = (s.text ?? '').trim();
@@ -133,6 +142,7 @@ class AliyunRtSession implements StreamingSession {
           this.cb.onPartial(text);
         }
       } else if (kind === 'task-finished') {
+        this.dead = true;
         this.settleFinish();
         this.ws.close();
       } else if (kind === 'task-failed') {
@@ -143,8 +153,7 @@ class AliyunRtSession implements StreamingSession {
 
     this.ws.on('error', (e) => this.fail(`ws error: ${e.message}`));
     this.ws.on('close', () => {
-      // close without task-finished while we still expect results = failure
-      if (!this.dead && this.finishResolve) this.settleFinish();
+      if (!this.dead) this.fail('connection closed before task-finished');
     });
   }
 
@@ -161,45 +170,50 @@ class AliyunRtSession implements StreamingSession {
   }
 
   private settleFinish(): void {
+    if (this.finishTimer) clearTimeout(this.finishTimer);
+    this.finishTimer = null;
     const r = this.finishResolve;
     this.finishResolve = null;
     r?.();
   }
 
   push(pcm: Float32Array): void {
-    if (this.dead || pcm.length === 0) return;
+    if (this.dead || this.finishRequested || pcm.length === 0) return;
     const buf = f32ToPcm16(pcm);
     if (this.started && this.ws.readyState === WebSocket.OPEN) this.ws.send(buf);
     else this.pending.push(buf);
   }
 
-  async close(): Promise<void> {
-    if (this.dead) return;
-    this.dead = true;
-    if (this.ws.readyState !== WebSocket.OPEN || !this.started) {
-      // never got going — just tear down
-      try {
-        this.ws.terminate();
-      } catch {
-        /* noop */
-      }
-      return;
-    }
+  private sendFinish(): void {
+    if (this.finishSent || this.dead || !this.started || this.ws.readyState !== WebSocket.OPEN) return;
+    this.finishSent = true;
     const finishTask = {
       header: { action: 'finish-task', task_id: this.taskId, streaming: 'duplex' },
       payload: { input: {} },
     };
-    const finished = new Promise<void>((res) => {
-      this.finishResolve = res;
-    });
     this.ws.send(JSON.stringify(finishTask));
-    const timeout = new Promise<void>((res) => setTimeout(res, FINISH_TIMEOUT_MS).unref?.());
-    await Promise.race([finished, timeout]);
-    try {
+  }
+
+  close(): Promise<void> {
+    if (this.dead) return Promise.resolve();
+    if (this.finishPromise) return this.finishPromise;
+    if (!this.started && this.pending.length === 0) {
+      // Connection probes can be cancelled before task-started with no audio
+      // to preserve. Do not leave their socket alive waiting for a task.
+      this.dead = true;
       this.ws.terminate();
-    } catch {
-      /* noop */
+      return Promise.resolve();
     }
+    this.finishRequested = true;
+    this.finishPromise = new Promise<void>((resolve) => {
+      this.finishResolve = resolve;
+    });
+    this.finishTimer = setTimeout(() => {
+      this.fail(this.started ? 'timed out waiting for task-finished' : 'timed out waiting for task-started');
+    }, FINISH_TIMEOUT_MS);
+    this.finishTimer.unref?.();
+    this.sendFinish();
+    return this.finishPromise;
   }
 }
 

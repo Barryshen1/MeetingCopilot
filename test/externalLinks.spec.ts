@@ -71,9 +71,11 @@ describe('isAllowedExternalUrl', () => {
         'github.com',
         'help.aliyun.com',
         'mimo.mi.com',
+        'modelstudio.console.alibabacloud.com',
         'modelstudio.console.aliyun.com',
         'platform.deepseek.com',
         'platform.xiaomimimo.com',
+        'www.alibabacloud.com',
       ].sort(),
     );
   });

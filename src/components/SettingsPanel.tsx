@@ -625,6 +625,20 @@ export function SettingsPanel({
               setRtModel(p.model);
             })}
           </div>
+          {rtModel === 'qwen-audio-3.1-asr-flash-streaming' && (
+            <div className="settings-row">
+              <label htmlFor="asr-workspace-url">{t.settings.rtWorkspaceUrl}</label>
+              <input
+                id="asr-workspace-url"
+                value={rtBaseUrl}
+                onChange={(e) => setRtBaseUrl(e.target.value)}
+                spellCheck={false}
+                autoComplete="off"
+                placeholder="wss://{WorkspaceId}.ap-southeast-1.maas.aliyuncs.com/api-ws/v1/inference"
+              />
+              <span className="settings-inline-hint">{t.settings.rtWorkspaceHint}</span>
+            </div>
+          )}
           {keyRow(t.settings.rtApiKey, rtKey, 'asr-realtime', rtTarget())}
         </>
       )}

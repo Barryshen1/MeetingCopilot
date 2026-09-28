@@ -342,14 +342,24 @@ export class SettingsStore {
       }
       if (cloud) {
         const { apiKey, ...crest } = cloud;
+        const before = JSON.stringify([this.data.asr.cloud?.baseUrl, this.data.asr.cloud?.model]);
         this.data.asr.cloud = { ...this.data.asr.cloud, ...stripUndefined(crest) };
+        const after = JSON.stringify([this.data.asr.cloud.baseUrl, this.data.asr.cloud.model]);
+        if (before !== after && crest.verification === undefined) {
+          this.data.asr.cloud.verification = undefined;
+        }
         if (apiKey !== undefined) {
           this.writeKey(this.data.asr.cloud, apiKey, crest.verification !== undefined);
         }
       }
       if (realtime) {
         const { apiKey, ...rrest } = realtime;
+        const before = JSON.stringify([this.data.asr.realtime?.baseUrl, this.data.asr.realtime?.model]);
         this.data.asr.realtime = { ...this.data.asr.realtime, ...stripUndefined(rrest) };
+        const after = JSON.stringify([this.data.asr.realtime.baseUrl, this.data.asr.realtime.model]);
+        if (before !== after && rrest.verification === undefined) {
+          this.data.asr.realtime.verification = undefined;
+        }
         if (apiKey !== undefined) {
           this.writeKey(this.data.asr.realtime, apiKey, rrest.verification !== undefined);
         }

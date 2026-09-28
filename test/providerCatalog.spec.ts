@@ -30,6 +30,7 @@ describe('providerCatalog', () => {
       'deepseek.text.deep',
       'aliyun.cn.asr.fun-realtime',
       'aliyun.cn.asr.paraformer-realtime-v2',
+      'aliyun.intl.asr.qwen-audio-3.1-flash-streaming',
       'mimo.text.fast',
       'mimo.asr.segment',
       'mimo.vision',
@@ -134,6 +135,25 @@ describe('providerCatalog', () => {
     expect(
       providerIdForEndpoint('wss://dashscope.aliyuncs.com/api-ws/v1/inference', 'fun-asr-realtime'),
     ).toBe('aliyun-dashscope-cn');
+  });
+
+  it('recognizes a dedicated Singapore Qwen ASR workspace without storing its ID in the catalog', () => {
+    const endpoint = 'wss://llm-example123.ap-southeast-1.maas.aliyuncs.com/api-ws/v1/inference';
+    expect(
+      findPresetByEndpoint(endpoint, 'qwen-audio-3.1-asr-flash-streaming', 'asr-realtime')?.id,
+    ).toBe('aliyun.intl.asr.qwen-audio-3.1-flash-streaming');
+    expect(
+      providerIdForEndpoint(endpoint, 'qwen-audio-3.1-asr-flash-streaming', 'asr-realtime'),
+    ).toBe('aliyun-dashscope-intl');
+    expect(
+      findPresetByEndpoint(
+        'wss://llm-example123.ap-southeast-1.maas.aliyuncs.com.evil.example/api-ws/v1/inference',
+        'qwen-audio-3.1-asr-flash-streaming',
+      ),
+    ).toBeUndefined();
+    expect(
+      findPresetByEndpoint(endpoint, 'fun-asr-realtime', 'asr-realtime'),
+    ).toBeUndefined();
   });
 
   it('treats unknown or partially matching endpoints as custom', () => {

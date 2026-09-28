@@ -591,6 +591,33 @@ describe('SettingsStore onboarding + key hints', () => {
     expect(s.data.asr.realtime?.verification).toBeUndefined();
   });
 
+  it('preserves a saved ASR key but invalidates a prior test when the endpoint changes', () => {
+    const s = new SettingsStore(file, fakeCipher);
+    s.applyPatch({
+      asr: {
+        realtime: {
+          baseUrl: 'wss://dashscope.aliyuncs.com/api-ws/v1/inference',
+          model: 'fun-asr-realtime',
+          apiKey: 'sk-aliyun-4321',
+        },
+      },
+    });
+    s.recordVerification('asr-realtime', { lastTestOk: true, lastTestCode: 'OK' });
+    const encryptedKey = s.data.asr.realtime?.apiKeyEnc;
+
+    s.applyPatch({
+      asr: {
+        realtime: {
+          baseUrl: 'wss://example.ap-southeast-1.maas.aliyuncs.com/api-ws/v1/inference',
+          model: 'qwen-audio-3.1-asr-flash-streaming',
+        },
+      },
+    });
+    expect(s.data.asr.realtime?.apiKeyEnc).toBe(encryptedKey);
+    expect(s.getRealtimeAsrApiKey()).toBe('sk-aliyun-4321');
+    expect(s.getPublic().asr.realtime.verification).toBeUndefined();
+  });
+
   it('MC_DEV_DEFAULT_LOCAL_ASR=1 keeps the pre-wizard developer boot', () => {
     const before = process.env.MC_DEV_DEFAULT_LOCAL_ASR;
     try {
