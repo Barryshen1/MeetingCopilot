@@ -92,12 +92,18 @@ export function CodexProviderSettings({ config, saved, onChange, onSettingsRefre
           {status.installed && !status.error && <span className={status.authenticated ? 'tag' : 'tag tag-err'}>
             {status.authenticated ? t.settings.codexSignedIn : t.settings.codexSignedOut}
           </span>}
-          {status.accountType && <span className="settings-inline-hint">{status.accountType}</span>}
+          {status.authenticated && status.accountType && <span className="settings-inline-hint">{status.accountType}</span>}
         </>}
         <button className="btn btn-sm" disabled={checking || testing} onClick={() => void refresh()}>
           {t.settings.codexRefresh}
         </button>
       </div>
+      {status?.authenticated && status.accountEmail && <div className="settings-inline-hint codex-path">
+        {t.settings.codexAccountEmail}: {status.accountEmail}
+      </div>}
+      {status?.authenticated && status.accountPlan && <div className="settings-inline-hint">
+        {t.settings.codexAccountPlan}: {status.accountPlan}
+      </div>}
       {status?.binaryPath && <span className="settings-inline-hint codex-path">{status.binaryPath}</span>}
       {(status?.error || statusError) && <div className="settings-warn">{status?.error || statusError}</div>}
       <span className="settings-inline-hint">{t.settings.codexLoginHint}</span>

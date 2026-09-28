@@ -52,7 +52,7 @@ class FakeCodex extends EventEmitter {
     if (this.handler?.(request)) return;
     if (request.id === undefined || !request.method) return;
     if (request.method === 'initialize') this.response(request, { userAgent: 'fake' });
-    else if (request.method === 'account/read') this.response(request, { account: { type: 'chatgpt', email: 'never-return-this@example.test' }, requiresOpenaiAuth: true });
+    else if (request.method === 'account/read') this.response(request, { account: { type: 'chatgpt', email: 'owner@example.test', planType: 'pro', id: 'never-return-this-account-id', accessToken: 'never-return-this-token' }, requiresOpenaiAuth: true });
     else if (request.method === 'model/list') this.response(request, { data: [
       { id: 'catalog-row', model: 'available-model', displayName: 'Available Model', isDefault: true, defaultReasoningEffort: 'low', supportedReasoningEfforts: [{ reasoningEffort: 'low', description: 'Fast' }] },
     ], nextCursor: null });
@@ -109,10 +109,10 @@ describe('Codex CLI integration', () => {
     expect(spawnMock).not.toHaveBeenCalled();
   });
 
-  it('handshakes once, lists account models, and does not expose account details', async () => {
+  it('handshakes once and exposes account display fields without credentials or identifiers', async () => {
     const [one, two] = await Promise.all([client.check(config), client.check(config)]);
     expect(one).toEqual(two);
-    expect(one).toMatchObject({ installed: true, authenticated: true, accountType: 'chatgpt', models: [{ id: 'available-model', supportedReasoningEfforts: [{ reasoningEffort: 'low' }] }] });
+    expect(one).toMatchObject({ installed: true, authenticated: true, accountType: 'chatgpt', accountEmail: 'owner@example.test', accountPlan: 'pro', models: [{ id: 'available-model', supportedReasoningEfforts: [{ reasoningEffort: 'low' }] }] });
     expect(JSON.stringify(one)).not.toContain('never-return-this');
     expect(spawnMock).toHaveBeenCalledTimes(2);
     expect(peers[0].requests.slice(0, 2).map(r => r.method)).toEqual(['initialize', 'initialized']);
@@ -128,7 +128,7 @@ describe('Codex CLI integration', () => {
     peers[0].handler = req => {
       if (req.method === 'account/read') { peers[0].response(req, { account: null, requiresOpenaiAuth: true }); return true; }
     };
-    expect(await client.check(config)).toMatchObject({ installed: true, authenticated: false, error: expect.stringContaining('codex login') });
+    expect(await client.check(config)).toMatchObject({ installed: true, authenticated: false, accountEmail: undefined, accountPlan: undefined, error: expect.stringContaining('codex login') });
   });
 
   it('bootstraps private state without credentials and preserves the real login home afterward', async () => {

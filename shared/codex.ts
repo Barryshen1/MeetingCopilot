@@ -27,6 +27,8 @@ export interface CodexStatus {
   authenticated: boolean;
   binaryPath?: string;
   accountType?: string;
+  accountEmail?: string;
+  accountPlan?: string;
   models: CodexModel[];
   error?: string;
 }

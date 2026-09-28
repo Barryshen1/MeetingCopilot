@@ -331,12 +331,18 @@ export class CodexClient {
     let binaryPath: string | undefined;
     let authenticated = false;
     let accountType: string | undefined;
+    let accountEmail: string | undefined;
+    let accountPlan: string | undefined;
     try {
       binaryPath = await discoverCodexBinary(config.binaryPath);
       const server = await this.connection(binaryPath);
       const account = await server.request('account/read', { refreshToken: false });
       authenticated = !!account?.account || account?.requiresOpenaiAuth === false;
       accountType = account?.account?.type;
+      // Only these display fields leave the CLI; never forward account IDs,
+      // credentials, or the raw response to the renderer.
+      accountEmail = typeof account?.account?.email === 'string' ? account.account.email : undefined;
+      accountPlan = typeof account?.account?.planType === 'string' ? account.account.planType : undefined;
       const models: CodexModel[] = [];
       let cursor: string | undefined;
       const seen = new Set<string>();
@@ -353,10 +359,10 @@ export class CodexClient {
         if (next && next === cursor) throw new Error('Codex returned a repeated model-list cursor.');
         cursor = typeof next === 'string' && next ? next : undefined;
       } while (cursor);
-      return { installed: true, authenticated, binaryPath, accountType, models,
+      return { installed: true, authenticated, binaryPath, accountType, accountEmail, accountPlan, models,
         ...(!authenticated ? { error: 'Codex is installed. Run codex login in your terminal, then check again.' } : {}) };
     } catch (error) {
-      return { installed: !!binaryPath, authenticated, binaryPath, accountType, models: [], error: asError(error).message };
+      return { installed: !!binaryPath, authenticated, binaryPath, accountType, accountEmail, accountPlan, models: [], error: asError(error).message };
     }
   }
 
