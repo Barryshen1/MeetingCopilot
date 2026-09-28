@@ -4,6 +4,8 @@
  */
 export const PROTOCOL_VERSION = 1;
 
+import type { CodexSettings } from './codex';
+
 import type { ProviderCapability, ProviderId } from './providerCatalog';
 export type { ProviderCapability, ProviderId } from './providerCatalog';
 import type { TrayRendererCommand } from './trayMenu';
@@ -153,6 +155,8 @@ export interface SettingsFile {
   /** first-run wizard state; added in v2 (migrated files are grandfathered) */
   onboarding: OnboardingState;
   llm: {
+    backend?: 'openai-compatible' | 'codex-cli';
+    codex?: CodexSettings;
     baseUrl: string;
     model: string;
     /** reply language for AI answers (R: 模式选择); default chinese */
@@ -250,6 +254,8 @@ export interface PublicSettings {
   /** first-run wizard state — public so the UI can show the upgrade notice */
   onboarding: OnboardingState;
   llm: {
+    backend?: 'openai-compatible' | 'codex-cli';
+    codex?: CodexSettings;
     baseUrl: string;
     model: string;
     answerLang: AnswerLang;
@@ -313,6 +319,8 @@ export interface PublicSettings {
  */
 export interface SettingsPatch {
   llm?: {
+    backend?: 'openai-compatible' | 'codex-cli';
+    codex?: CodexSettings;
     baseUrl?: string;
     model?: string;
     answerLang?: AnswerLang;
@@ -498,6 +506,8 @@ export interface TrayCommandPayload {
 // ---------- IPC channel names ----------
 
 export const IPC = {
+  codexStatus: 'codex:status',
+  codexTest: 'codex:test',
   /** renderer -> main, fire and forget: (ArrayBuffer pcmF32, captureTs, Speaker) */
   capturePcm: 'capture:pcm',
   /** invoke: (text) => string — cheap one-shot translation to Chinese (inline, off-session) */

@@ -138,6 +138,40 @@ describe('deriveServiceHealth — ASR', () => {
 });
 
 describe('deriveServiceHealth — LLM, audio, vision', () => {
+  it('allows Codex answers without an API key, endpoint, or explicit model, but stays untested', () => {
+    const s = settings();
+    s.llm = { ...s.llm, backend: 'codex-cli', apiKeySet: false, baseUrl: '', model: '' };
+    s.asr.realtime.apiKeySet = false;
+    const r = deriveServiceHealth(input({ settings: s }));
+    expect(r.llm.state).toBe('untested');
+    expect(r.answersAvailable).toBe(true);
+    expect(r.needsSetup).toBe(false);
+    expect(r.llm.local).not.toBe(true);
+  });
+
+  it('uses a real Codex test verdict for AI health', () => {
+    const s = settings();
+    s.llm.backend = 'codex-cli';
+    s.llm.apiKeySet = false;
+    s.llm.verification = okVerdict;
+    expect(deriveServiceHealth(input({ settings: s })).llm.state).toBe('ok');
+    s.llm.verification = badVerdict;
+    expect(deriveServiceHealth(input({ settings: s })).llm.state).toBe('failed');
+    expect(deriveServiceHealth(input({ settings: s })).answersAvailable).toBe(true);
+  });
+
+  it('enables Codex screenshot mode without a separate vision API and does not imply image verification', () => {
+    const s = settings();
+    s.llm.backend = 'codex-cli';
+    s.llm.verification = okVerdict;
+    expect(deriveServiceHealth(input({ settings: s })).vision.state).toBe('off');
+    s.llm.answerWithVision = true;
+    const vision = deriveServiceHealth(input({ settings: s })).vision;
+    expect(vision.state).toBe('untested');
+    expect(vision.slot).toBeUndefined();
+    expect(vision.optional).toBe(true);
+  });
+
   it('marks the LLM unconfigured without a key and disables answers', () => {
     const s = settings();
     s.llm.apiKeySet = false;

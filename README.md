@@ -8,7 +8,7 @@ Live transcription of the other side · first-person teleprompter answers · cap
 
 <a href="https://github.com/JWM0203/MeetingCopilot/stargazers"><img src="https://img.shields.io/github/stars/JWM0203/MeetingCopilot?style=flat-square&logo=github&color=2a6df4" alt="GitHub stars"></a>
 <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache%202.0-3da639?style=flat-square" alt="license"></a>
-<a href="https://github.com/JWM0203/MeetingCopilot"><img src="https://img.shields.io/badge/GitHub-repo-181717?style=flat-square&logo=github" alt="GitHub repo"></a>
+<a href="https://github.com/Barryshen1/MeetingCopilot"><img src="https://img.shields.io/badge/GitHub-personal%20fork-181717?style=flat-square&logo=github" alt="GitHub personal fork"></a>
 <a href="https://gitee.com/jwm0302/MeetingCopilot"><img src="https://img.shields.io/badge/Gitee-China%20mirror-C71D23?style=flat-square&logo=gitee" alt="Gitee mirror"></a>
 <a href="https://www.xiaohongshu.com/discovery/item/6a50df530000000007020f79?source=webshare&xhsshare=pc_web&xsec_token=ABbqtJXWoEQSYl-hNrBxJbXeGEZWoH6YjnAYj97pjKEpo=&xsec_source=pc_share"><img src="https://img.shields.io/badge/小红书-视频效果-ff2442?style=flat-square&logo=xiaohongshu&logoColor=white" alt="小红书视频效果"></a>
 <a href="https://www.xiaohongshu.com/discovery/item/6a50ddc800000000080027a6?source=webshare&xhsshare=pc_web&xsec_token=YBsteWYkixo34xXwfYeNXKL1SFbiOeg7mxQAZyq7wQIc4=&xsec_source=pc_share"><img src="https://img.shields.io/badge/小红书-开源推文-ff2442?style=flat-square&logo=xiaohongshu&logoColor=white" alt="小红书开源推文"></a>
@@ -17,12 +17,22 @@ Live transcription of the other side · first-person teleprompter answers · cap
 
 </div>
 
+## Personal fork: Codex CLI
+
+This is [Barryshen1's personal fork](https://github.com/Barryshen1/MeetingCopilot) of [JWM0203/MeetingCopilot](https://github.com/JWM0203/MeetingCopilot). The original project, artwork and Apache-2.0 license are retained.
+
+- **Codex CLI answers:** use your installed Codex CLI and its existing sign-in for answers, translation, meeting memo and screenshot questions. See [Codex CLI setup](docs/CODEX_CLI.en.md) ([中文](docs/CODEX_CLI.zh-CN.md)). The integration was inspired by the CLI-provider workflow in [Natively](https://github.com/Natively-AI-assistant/natively-cluely-ai-assistant).
+- **Local macOS app:** build an Apple-silicon `.app` with `npm run dist:mac:dir`, or an ad-hoc-signed ZIP with `npm run dist:mac`. See [macOS installation](docs/user/INSTALL_MACOS.en.md).
+- **Transcription stays separate:** Codex CLI handles text and images; choose a local or cloud speech-recognition backend. Meeting/system audio on macOS still requires routing to a selectable input, such as BlackHole.
+
+The upstream downloads and demos below describe the original project. Upstream binaries do not include this fork's Codex CLI integration.
+
 ## Download
 
 **Just want to use it?** Download the installer — no Node.js, no Python, no commands.
 **Want to hack on it?** Skip to [Development](#development) and run from source.
 
-**[⬇ Get the latest release](https://github.com/JWM0203/MeetingCopilot/releases/latest)**
+**[⬇ Get the latest upstream Windows release](https://github.com/JWM0203/MeetingCopilot/releases/latest)**
 
 | File | Type | Best for |
 |---|---|---|
@@ -33,7 +43,7 @@ Live transcription of the other side · first-person teleprompter answers · cap
 
 > ⚠️ **This beta is not code-signed yet**, so Windows SmartScreen will warn you. Confirm the file came from the official release page, then *More info → Run anyway*. Each `.exe` ships a matching `.exe.sha256` with the hash CI computed — verify it with `Get-FileHash .\MeetingCopilot-<version>-win-x64.exe -Algorithm SHA256`.
 
-> 🍎 **macOS:** no packaged build in this release. macOS is supported when run from source — see [INSTALL_MACOS.en.md](docs/user/INSTALL_MACOS.en.md).
+> 🍎 **macOS:** this fork can build a local Apple-silicon app. It is ad-hoc signed and not notarized; see [INSTALL_MACOS.en.md](docs/user/INSTALL_MACOS.en.md).
 
 **User guides:** [Quick start](docs/user/QUICK_START.en.md) · [API keys](docs/user/API_KEYS.en.md) · [Troubleshooting](docs/user/TROUBLESHOOTING.en.md) · [Windows install & data locations](docs/user/INSTALL_WINDOWS.en.md)
 
@@ -127,7 +137,7 @@ You can reopen the wizard any time from *⚙ Settings → Run the setup wizard a
 |---|---|
 | OS | Windows 10 / 11, or Apple-silicon macOS 14+ |
 | Cloud ASR *(recommended)* | Alibaba Cloud DashScope API key, or a MiMo key |
-| LLM | Any OpenAI-compatible API key — DeepSeek recommended (fast, cheap, prefix caching) |
+| LLM | An installed, signed-in Codex CLI, or an OpenAI-compatible API key |
 | Local streaming ASR | Python 3.10/3.11 with `funasr` + `torch`; CUDA, Apple MPS, or CPU fallback |
 | Experimental MOSS ASR | isolated Python 3.12 env; NVIDIA CUDA BF16 first, automatic CPU fallback |
 | Local Whisper *(offline fallback)* | `whisper-large-v3-turbo` ONNX weights; DirectML on Windows, CPU elsewhere |
@@ -172,16 +182,16 @@ Place [`onnx-community/whisper-large-v3-turbo-ONNX`](https://huggingface.co/onnx
 ## Privacy
 
 - API keys are encrypted at rest with Electron `safeStorage` (Windows DPAPI / macOS Keychain) and never reach the renderer process.
-- All data (settings / sessions / materials) lives under Electron's per-user `userData` directory (`%APPDATA%/MeetingCopilot/` on Windows and `~/Library/Application Support/MeetingCopilot/` on macOS). No telemetry, no accounts, no server.
-- With the local ASR backends, audio never leaves your machine; with BYOK LLMs, transcripts go only to the provider you configured.
+- All MeetingCopilot data (settings / sessions / materials) lives under Electron's per-user `userData` directory (`%APPDATA%/MeetingCopilot/` on Windows and `~/Library/Application Support/MeetingCopilot/` on macOS). MeetingCopilot has no telemetry, account service or hosted backend.
+- With the local ASR backends, audio never leaves your machine. Transcripts, selected materials and requested screenshots go to your configured answer provider, including Codex when selected. Codex manages its own credentials and service connection; see [Codex CLI setup](docs/CODEX_CLI.en.md).
 - The diagnostics report is built locally and contains no keys, transcripts or resume text — it is safe to paste into a public issue.
 
 ## Development
 
 ```bash
-git clone https://github.com/JWM0203/MeetingCopilot.git
+git clone https://github.com/Barryshen1/MeetingCopilot.git
 cd MeetingCopilot
-npm install        # postinstall applies patches/ (transformers.js patch — do not remove)
+npm ci             # postinstall applies patches/ (transformers.js patch — do not remove)
 npm run build      # builds main + preload + renderer into out/
 npm start          # cross-platform; Windows can also use start.bat
 ```
@@ -193,7 +203,9 @@ npm test            # unit tests (prompt building / VAD / stores / doc parsing /
 npm run typecheck   # dual tsconfig (main + renderer)
 npm run dev         # vite HMR dev mode
 npm run verify      # typecheck + tests + build, the pre-commit gate
-npm run dist:dir    # unpacked build into release/win-unpacked
+npm run dist:dir    # unpacked build for the current platform
+npm run dist:mac:dir # Apple silicon: release/mac-arm64/MeetingCopilot.app (ad-hoc signed)
+npm run dist:mac    # Apple silicon: app + ZIP archive (ad-hoc signed, no publishing)
 npm run dist:win    # nsis + portable installers
 npm run smoke:packaged        # boots the packaged exe and asserts both startup paths
 node tools/rt-asr-smoke.mjs   # streaming-ASR protocol smoke (set MC_RT_URL / MC_RT_KEY)

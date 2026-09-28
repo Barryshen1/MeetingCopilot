@@ -1,68 +1,73 @@
-# Installing on macOS
+# Installing this personal fork on macOS
 
-> **Status: no packaged macOS build yet.** The `v0.2.0-beta.1` release ships Windows installers only. macOS is supported when run from source, and a signed/notarised `.dmg` is planned for a later release. Until then, follow the "Run from source" section below.
+This fork supports local Apple-silicon `.app` and ZIP builds. These builds use **ad-hoc signing** and are **not Apple-notarized**. They need no Apple Developer signing credentials. The commands below do not publish a release or install audio drivers, Python, models or Codex CLI.
 
-The app itself is macOS-aware: the wizard, the tray, cloud transcription, AI answers and the vision path all work. What is missing is packaging, not functionality.
-
----
+[简体中文](INSTALL_MACOS.zh-CN.md) · [Codex CLI setup](../CODEX_CLI.en.md)
 
 ## Requirements
 
 | Item | Requirement |
 |---|---|
-| OS | macOS 14+ (Apple silicon) |
-| Runtime | Node.js ≥ 20 and npm (only because you are building it yourself) |
-| Audio | A virtual audio device such as [BlackHole](https://github.com/ExistentialAudio/BlackHole) — macOS has no system loopback capture |
-| API keys | Same as Windows; see [API_KEYS.en.md](API_KEYS.en.md) |
+| OS | macOS 14+ on Apple silicon |
+| Build tools | Node.js ≥ 20, npm and Apple's Command Line Tools (`xcode-select -p` checks for them) |
+| AI answers | Installed, signed-in Codex CLI, or an OpenAI-compatible API provider |
+| Transcription | A cloud ASR key, or a separately configured local ASR environment and model |
+| Meeting/system audio | Audio routed to an input such as [BlackHole](https://github.com/ExistentialAudio/BlackHole); a microphone alone records your room |
+
+## Build the app
+
+```bash
+git clone https://github.com/Barryshen1/MeetingCopilot.git
+cd MeetingCopilot
+npm ci             # applies the required patches/ automatically
+npm run dist:mac:dir
+open release/mac-arm64/MeetingCopilot.app
+```
+
+The app is created at `release/mac-arm64/MeetingCopilot.app`. Move it to your preferred Applications folder after quitting it if you want a stable installed location. To also create an archive, run `npm run dist:mac`; the ZIP is named `MeetingCopilot-<version>-mac-arm64-adhoc.zip` under `release/`.
+
+The build retains hardened runtime and signs the app and its helpers ad hoc. The entitlements allow Electron's JIT, loading its bundled libraries, and microphone access. They do not grant microphone or screen-recording consent; macOS still asks you.
+
+The first launch opens the setup wizard. For Codex, choose **Codex CLI, advanced setup and local modes**, then follow [Codex CLI setup](../CODEX_CLI.en.md). Speech recognition is configured separately. You can ask typed questions before setting up transcription.
 
 ## Run from source
 
+After `npm ci`, use:
+
 ```bash
-git clone https://github.com/JWM0203/MeetingCopilot.git
-cd MeetingCopilot
-npm install        # postinstall applies patches/ — do not remove it
 npm run build
 npm start
 ```
 
-The first launch opens the same setup wizard as the Windows build; walk through it with [QUICK_START.en.md](QUICK_START.en.md).
+For development with hot reload, run `npm run dev`. Permissions granted to Electron in this mode may need to be granted again to the packaged MeetingCopilot app.
 
-## Audio routing (the part that is genuinely different)
+## Audio routing and permissions
 
-Windows can capture system loopback audio with no configuration. macOS cannot, so the other party's voice has to be routed into an ordinary input device:
+The macOS app uses an ordinary audio input for the other party's speech. To route meeting/system audio through BlackHole:
 
-1. Install [BlackHole](https://github.com/ExistentialAudio/BlackHole) (2ch is enough).
-2. In *Audio MIDI Setup*, create a Multi-Output Device containing both your headphones and BlackHole, so you can still hear the meeting.
-3. Set that Multi-Output Device as the system output, or as the meeting app's output.
-4. In MeetingCopilot, set **Settings → other-party audio input** to BlackHole (the setup wizard asks for this on step 4 when it detects macOS).
-5. Press "▶ Start" and confirm text appears.
+1. Install [BlackHole](https://github.com/ExistentialAudio/BlackHole) separately.
+2. In **Audio MIDI Setup**, create a Multi-Output Device containing your headphones and BlackHole.
+3. Select that Multi-Output Device as the system output, or as the meeting app's output.
+4. In MeetingCopilot, select BlackHole as **Settings → Other-party audio input**.
+5. Press **Start**, allow microphone access if prompted, and check the audio level and transcript.
 
-Full detail, including permissions and per-app routing: [docs/macos/SETUP.md](../macos/SETUP.md).
+Microphone permission covers audio input devices, including virtual ones. You may also enable a separate microphone channel for your own voice.
 
-## What a future packaged build will look like
+Screenshot Q&A requires **Screen Recording** permission (called **Screen & System Audio Recording** on some macOS versions). Grant it under **System Settings → Privacy & Security** when requested, and quit and reopen MeetingCopilot if macOS asks. This permission alone does not configure meeting audio routing.
 
-When the `.dmg` lands it will initially be **unsigned and un-notarised**, exactly like the current Windows beta. The macOS-specific consequences will be:
+Full routing and local Python setup: [macOS setup](../macos/SETUP.md).
 
-- Gatekeeper will refuse a plain double-click. The usual workarounds are right-click → *Open* → *Open*, or removing the quarantine flag:
+## Data and limitations
 
-  ```bash
-  xattr -dr com.apple.quarantine /Applications/MeetingCopilot.app
-  ```
-
-- On first launch macOS will ask for **microphone** permission (only if you enable the mic channel) and for **screen recording** permission (only if you use screenshot Q&A).
-- Data will live in `~/Library/Application Support/MeetingCopilot/` (`settings.json`, `sessions.json`, `knowledge.md`, `models/`), and API keys will be encrypted with the macOS Keychain.
-
-## Known macOS limitations
-
-- **Stealth is best-effort.** Content protection cannot guarantee invisibility against recent ScreenCaptureKit clients; assume a modern screen recorder may see the window.
-- **No local MOSS backend.** The experimental MOSS sidecar is CUDA/CPU on Windows only. FunASR runs on Apple MPS; local Whisper falls back to CPU (DirectML is Windows-only).
-- **Auto-start at login** is stored but only applied by an installed build, so it does nothing while you run from source.
-
----
+- Settings, sessions, materials and model data are stored in `~/Library/Application Support/MeetingCopilot/`. API keys use Electron `safeStorage` with macOS Keychain; Codex CLI manages its own login.
+- The app bundle identifier is `io.github.barryshen1.meetingcopilot`. The fork retains the `MeetingCopilot` data folder, so it shares data with any existing upstream installation using that folder.
+- Ad-hoc signing is suitable for this local personal build. Public distribution requires a separate signing and notarization setup.
+- Capture protection is best-effort: modern ScreenCaptureKit clients may capture the window.
+- Local FunASR requires its own Python environment and model. Local Whisper uses CPU on macOS. This build does not install or validate those backends for you.
 
 ## Related documents
 
-- [QUICK_START.en.md](QUICK_START.en.md) — the five-step wizard and your first meeting
-- [API_KEYS.en.md](API_KEYS.en.md) — provider-by-provider key guides
-- [TROUBLESHOOTING.en.md](TROUBLESHOOTING.en.md) — error codes, no-sound triage, diagnostics
-- [docs/macos/SETUP.md](../macos/SETUP.md) — full platform setup (python env, BlackHole, permissions)
+- [Codex CLI setup](../CODEX_CLI.en.md)
+- [Quick start](QUICK_START.en.md)
+- [API key setup](API_KEYS.en.md)
+- [Troubleshooting](TROUBLESHOOTING.en.md)

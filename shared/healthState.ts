@@ -102,7 +102,8 @@ function deriveLlm(settings: PublicSettings): ServiceHealth {
     slot: 'llm',
     verification: settings.llm.verification,
   };
-  if (!settings.llm.apiKeySet || !settings.llm.baseUrl || !settings.llm.model) {
+  if (settings.llm.backend !== 'codex-cli' &&
+      (!settings.llm.apiKeySet || !settings.llm.baseUrl || !settings.llm.model)) {
     return { ...base, state: 'unconfigured' };
   }
   if (base.verification?.lastTestOk === false) return { ...base, state: 'failed' };
@@ -115,6 +116,14 @@ function deriveAudio(capturing: boolean): ServiceHealth {
 }
 
 function deriveVision(settings: PublicSettings): ServiceHealth {
+  if (settings.llm.backend === 'codex-cli') {
+    // A successful text test does not establish the selected model's image support.
+    return {
+      key: 'vision',
+      state: settings.llm.answerWithVision ? 'untested' : 'off',
+      optional: true,
+    };
+  }
   const base: ServiceHealth = {
     key: 'vision',
     state: 'off',

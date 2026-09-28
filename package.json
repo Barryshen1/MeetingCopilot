@@ -1,13 +1,13 @@
 {
   "name": "meeting-copilot",
   "version": "0.2.0-beta.1",
-  "description": "Real-time meeting/interview copilot for Windows and macOS: streaming ASR (local FunASR / cloud) and first-person answers via BYOK LLM",
+  "description": "Personal MeetingCopilot fork for Windows and macOS: streaming transcription and answers through Codex CLI or an OpenAI-compatible API",
   "main": "./out/main/index.js",
   "author": "JWM0203",
   "license": "Apache-2.0",
   "repository": {
     "type": "git",
-    "url": "https://github.com/JWM0203/MeetingCopilot.git"
+    "url": "https://github.com/Barryshen1/MeetingCopilot.git"
   },
   "private": true,
   "scripts": {
@@ -22,9 +22,12 @@
     "verify": "npm run typecheck && npm test && npm run build",
     "verify:patched": "node tools/verify-patched.mjs",
     "dist:dir": "npm run build && npm run verify:patched && electron-builder --dir",
+    "dist:mac:dir": "npm run build && npm run verify:patched && electron-builder --mac dir --arm64 --publish never",
+    "dist:mac": "npm run build && npm run verify:patched && electron-builder --mac zip --arm64 --publish never",
     "dist:win": "npm run build && npm run verify:patched && electron-builder --win nsis portable --publish never",
     "harness": "node tools/asr-harness.mjs",
     "smoke:llm": "vite-node tools/llm-smoke.ts",
+    "smoke:codex": "vite-node tools/codex-smoke.ts",
     "smoke:asr:realtime": "node tools/rt-asr-smoke.mjs",
     "smoke:e2e:llm": "node tools/e2e-llm.mjs",
     "smoke:e2e:local": "node tools/e2e-local-lifecycle.mjs",

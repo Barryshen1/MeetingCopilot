@@ -1,4 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron';
+import type { CodexSettings, CodexStatus, CodexTestResult } from '../shared/codex';
 import {
   IPC,
   type AppInfo,
@@ -20,6 +21,8 @@ export interface McApi {
   readonly platform: NodeJS.Platform;
   getSettings(): Promise<PublicSettings>;
   setSettings(patch: SettingsPatch): Promise<PublicSettings>;
+  codexStatus(config?: CodexSettings): Promise<CodexStatus>;
+  codexTest(config?: CodexSettings): Promise<CodexTestResult>;
   /** first-run wizard state (the main window only reads it / dismisses the
    * upgrade notice — completing onboarding belongs to the setup window) */
   getOnboarding(): Promise<OnboardingState>;
@@ -89,6 +92,8 @@ const api: McApi = {
   platform: process.platform,
   getSettings: () => ipcRenderer.invoke(IPC.settingsGet),
   setSettings: (patch) => ipcRenderer.invoke(IPC.settingsSet, patch),
+  codexStatus: (config) => ipcRenderer.invoke(IPC.codexStatus, config),
+  codexTest: (config) => ipcRenderer.invoke(IPC.codexTest, config),
   getOnboarding: () => ipcRenderer.invoke(IPC.onboardingGet),
   saveOnboardingProgress: (patch) => ipcRenderer.invoke(IPC.onboardingSaveProgress, patch),
   rerunOnboarding: () => ipcRenderer.invoke(IPC.onboardingRerun),

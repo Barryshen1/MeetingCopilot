@@ -10,6 +10,7 @@
  * questions).
  */
 import { useState } from 'react';
+import type { CodexTestResult } from '../../shared/codex';
 import type {
   ProviderSlot,
   ProviderTestResult,
@@ -42,6 +43,7 @@ const TONE_CLASS: Record<string, string> = {
 function targetForSlot(s: PublicSettings, slot: ProviderSlot): EndpointTarget | undefined {
   switch (slot) {
     case 'llm':
+      if (s.llm.backend === 'codex-cli') return undefined;
       return {
         capability: 'text-llm',
         providerId: providerIdForEndpoint(s.llm.baseUrl, s.llm.model, 'text-llm'),
@@ -107,6 +109,21 @@ export function ServiceHealthPanel({
     Partial<Record<ProviderSlot, { result: ProviderTestResult; at: number }>>
   >({});
   const [error, setError] = useState<string | null>(null);
+  const [codexResult, setCodexResult] = useState<CodexTestResult>();
+
+  const runCodexTest = async () => {
+    setTesting('llm');
+    setError(null);
+    setCodexResult(undefined);
+    try {
+      setCodexResult(await window.mc.codexTest(settings.llm.codex));
+      onSettingsRefreshed(await window.mc.getSettings());
+    } catch (error) {
+      setError(t.settings.testCrashed((error as Error).message));
+    } finally {
+      setTesting(null);
+    }
+  };
 
   const runTest = async (slot: ProviderSlot, target: EndpointTarget) => {
     setTesting(slot);
@@ -130,6 +147,7 @@ export function ServiceHealthPanel({
   };
 
   const row = (h: ServiceHealth, label: string, note?: string) => {
+    const codex = h.key === 'llm' && settings.llm.backend === 'codex-cli';
     const target = h.slot ? targetForSlot(settings, h.slot) : undefined;
     const canTest =
       !!h.slot &&
@@ -161,6 +179,10 @@ export function ServiceHealthPanel({
                 {testing === h.slot ? t.health.testing : t.health.retest}
               </button>
             )}
+            {codex && <button className="btn btn-sm" disabled={testing !== null}
+              onClick={() => void runCodexTest()}>
+              {testing === 'llm' ? t.health.testing : t.health.retest}
+            </button>}
             <button className="btn btn-sm" onClick={() => void window.mc.rerunOnboarding()}>
               {t.health.openWizard}
             </button>
@@ -172,7 +194,13 @@ export function ServiceHealthPanel({
         {h.slot && !fresh && h.state !== 'off' && h.state !== 'unconfigured' && (
           <div className="conn-hint">{verificationLine(h.verification)}</div>
         )}
-        {h.slot && (
+        {codex && codexResult && <div role="status">
+          <span className={codexResult.ok ? 'tag tag-ok' : 'tag tag-err'}>
+            {codexResult.ok ? t.settings.testSuccessTag(codexResult.latencyMs) : t.settings.testFailedTag}
+          </span>
+          <div className="conn-hint">{codexResult.message}</div>
+        </div>}
+        {h.slot && !codex && (
           <ConnectionResult
             copy={copy}
             result={fresh?.result ?? null}
@@ -213,7 +241,7 @@ export function ServiceHealthPanel({
       {partialHint && <div className="settings-hint">{partialHint}</div>}
 
       {row(health.asr, t.health.rowAsr, health.asr.local ? t.health.localBackend : undefined)}
-      {row(health.llm, t.health.rowLlm)}
+      {row(health.llm, t.health.rowLlm, settings.llm.backend === 'codex-cli' ? t.health.codexBackend : undefined)}
       {row(
         health.audio,
         t.health.rowAudio,
@@ -222,7 +250,8 @@ export function ServiceHealthPanel({
       {row(
         health.vision,
         t.health.rowVision,
-        health.vision.state === 'off' ? t.health.visionOff : undefined,
+        settings.llm.backend === 'codex-cli' ? t.health.codexVision
+          : health.vision.state === 'off' ? t.health.visionOff : undefined,
       )}
 
       {error && <div className="settings-warn">{error}</div>}

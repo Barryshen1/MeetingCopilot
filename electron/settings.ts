@@ -22,6 +22,7 @@ import type {
 } from '../shared/protocol';
 import { defaultHotkeysForPlatform } from '../shared/platform';
 import { providerIdForEndpoint } from '../shared/providerCatalog';
+import { codexConfigKey } from '../shared/codex';
 
 export interface SecretCipher {
   available(): boolean;
@@ -60,6 +61,8 @@ export function defaultSettings(platform: string = process.platform): SettingsFi
       completed: process.env.MC_DEV_DEFAULT_LOCAL_ASR === '1',
     },
     llm: {
+      backend: 'openai-compatible',
+      codex: {},
       baseUrl: 'https://api.deepseek.com/v1',
       // 'deepseek-chat' = v4-flash in NON-thinking mode (first token ~0.4 s).
       // Plain 'deepseek-v4-flash' streams a long reasoning_content chain first
@@ -110,7 +113,7 @@ function mergeWithDefaults(raw: Partial<SettingsFile>, defaults: SettingsFile): 
   return {
     version: 2,
     onboarding: { ...defaults.onboarding, ...raw.onboarding, schemaVersion: 1 },
-    llm: { ...defaults.llm, ...raw.llm },
+    llm: { ...defaults.llm, ...raw.llm, codex: { ...defaults.llm.codex, ...raw.llm?.codex } },
     vision: { ...defaults.vision, ...raw.vision },
     asr: {
       ...defaults.asr,
@@ -300,10 +303,21 @@ export class SettingsStore {
 
   applyPatch(patch: SettingsPatch): void {
     if (patch.llm) {
-      const { apiKey, ...rest } = patch.llm;
+      const connectionKey = () => this.data.llm.backend === 'codex-cli'
+        ? `codex:${codexConfigKey(this.data.llm.codex)}`
+        : JSON.stringify(['api', this.data.llm.baseUrl.trim().replace(/\/+$/, ''), this.data.llm.model.trim()]);
+      const before = connectionKey();
+      const { apiKey, codex, ...rest } = patch.llm;
       Object.assign(this.data.llm, stripUndefined(rest));
+      // Explicit undefined clears an override (e.g. returning to the CLI's
+      // default effort); omitted fields still survive a partial patch.
+      if (codex) this.data.llm.codex = { ...this.data.llm.codex, ...codex };
+      const after = connectionKey();
+      if (before !== after && (rest.verification === undefined || this.data.llm.backend === 'codex-cli')) {
+        this.data.llm.verification = undefined;
+      }
       if (apiKey !== undefined) {
-        this.writeKey(this.data.llm, apiKey, rest.verification !== undefined);
+        this.writeKey(this.data.llm, apiKey, rest.verification !== undefined || this.data.llm.backend === 'codex-cli');
       }
     }
     if (patch.vision) {
@@ -398,6 +412,8 @@ export class SettingsStore {
       weakCrypto: !this.cipher.secure,
       onboarding: { ...d.onboarding },
       llm: {
+        backend: d.llm.backend ?? 'openai-compatible',
+        codex: { ...d.llm.codex },
         baseUrl: d.llm.baseUrl,
         model: d.llm.model,
         answerLang: d.llm.answerLang,

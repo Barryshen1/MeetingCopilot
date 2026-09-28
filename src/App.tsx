@@ -699,9 +699,9 @@ export function App() {
 
   const visionReady =
     !!settings?.llm.answerWithVision &&
-    !!settings?.vision.baseUrl &&
+    (settings.llm.backend === 'codex-cli' || (!!settings?.vision.baseUrl &&
     !!settings?.vision.model &&
-    !!settings?.vision.apiKeySet;
+    !!settings?.vision.apiKeySet));
 
   /**
    * One derivation for the status chips, the health panel and the answer
@@ -874,6 +874,7 @@ export function App() {
             setShowSettings(false);
           }}
           onClose={() => setShowSettings(false)}
+          onSettingsRefreshed={setSettings}
           onRerunWizard={() => {
             setShowSettings(false);
             void window.mc.rerunOnboarding();

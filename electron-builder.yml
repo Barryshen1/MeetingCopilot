@@ -1,4 +1,4 @@
-appId: com.jwm0203.meetingcopilot
+appId: io.github.barryshen1.meetingcopilot
 productName: MeetingCopilot
 copyright: Copyright © 2025 JWM0203
 
@@ -75,6 +75,26 @@ extraResources:
     to: resources/tray
     filter:
       - '*.png'
+
+# Personal Apple-silicon build: ad-hoc signing needs no Developer ID credentials.
+# This is a local-use build, not a notarized release. No publishing is configured.
+mac:
+  category: public.app-category.productivity
+  icon: build/icon.png
+  minimumSystemVersion: '14.0'
+  artifactName: ${productName}-${version}-mac-${arch}-adhoc.${ext}
+  target:
+    - target: zip
+      arch:
+        - arm64
+  identity: '-'
+  hardenedRuntime: true
+  notarize: false
+  entitlements: build/entitlements.mac.plist
+  entitlementsInherit: build/entitlements.mac.plist
+  extendInfo:
+    NSMicrophoneUsageDescription: MeetingCopilot uses your selected audio input to transcribe speech when you start recording.
+    NSScreenCaptureUsageDescription: MeetingCopilot captures the screen only when you request screenshot questions and answers.
 
 win:
   icon: build/icon.ico

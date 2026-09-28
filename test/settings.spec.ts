@@ -32,6 +32,42 @@ afterEach(() => {
 });
 
 describe('SettingsStore', () => {
+  it('stores Codex preferences separately and preserves API credentials when switching', () => {
+    const store = new SettingsStore(file, fakeCipher);
+    store.applyPatch({ llm: { apiKey: 'test-api-key', backend: 'codex-cli', codex: { model: 'selected-model', binaryPath: '/example/codex' } } });
+    store.applyPatch({ llm: { codex: { reasoningEffort: 'low' } } });
+    const loaded = new SettingsStore(file, fakeCipher);
+    expect(loaded.getPublic().llm.codex).toEqual({ model: 'selected-model', binaryPath: '/example/codex', reasoningEffort: 'low' });
+    expect(loaded.getLlmApiKey()).toBe('test-api-key');
+    loaded.applyPatch({ llm: { codex: { reasoningEffort: undefined } } });
+    expect(loaded.getPublic().llm.codex?.reasoningEffort).toBeUndefined();
+    expect(loaded.getPublic().llm.codex?.model).toBe('selected-model');
+    loaded.applyPatch({ llm: { backend: 'openai-compatible' } });
+    expect(loaded.data.llm.model).toBe('deepseek-chat');
+    expect(loaded.getLlmApiKey()).toBe('test-api-key');
+  });
+
+  it('invalidates Codex verification when the backend or model changes', () => {
+    const store = new SettingsStore(file, fakeCipher);
+    store.applyPatch({ llm: { backend: 'codex-cli', codex: { model: 'first' } } });
+    store.recordVerification('llm', { lastTestOk: true });
+    store.applyPatch({ llm: { answerLang: 'english' } });
+    expect(store.getPublic().llm.verification?.lastTestOk).toBe(true);
+    store.applyPatch({ llm: { codex: { model: 'second' } } });
+    expect(store.getPublic().llm.verification).toBeUndefined();
+    store.recordVerification('llm', { lastTestOk: true });
+    store.applyPatch({ llm: { backend: 'openai-compatible' } });
+    expect(store.getPublic().llm.verification).toBeUndefined();
+  });
+
+  it('preserves verification for equivalent CLI defaults and unused API settings', () => {
+    const store = new SettingsStore(file, fakeCipher);
+    store.applyPatch({ llm: { backend: 'codex-cli' } });
+    store.recordVerification('llm', { lastTestOk: true });
+    store.applyPatch({ llm: { codex: { binaryPath: '', model: '', reasoningEffort: undefined }, baseUrl: 'https://unused.test', apiKey: 'unused-key' }, ui: { theme: 'light' } });
+    expect(store.getPublic().llm.verification?.lastTestOk).toBe(true);
+  });
+
   it('boots with defaults when no file exists', () => {
     const s = new SettingsStore(file, fakeCipher);
     expect(s.data).toEqual(defaultSettings());

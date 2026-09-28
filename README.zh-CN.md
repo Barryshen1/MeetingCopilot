@@ -8,7 +8,7 @@
 
 <a href="https://github.com/JWM0203/MeetingCopilot/stargazers"><img src="https://img.shields.io/github/stars/JWM0203/MeetingCopilot?style=flat-square&logo=github&color=2a6df4" alt="GitHub stars"></a>
 <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache%202.0-3da639?style=flat-square" alt="license"></a>
-<a href="https://github.com/JWM0203/MeetingCopilot"><img src="https://img.shields.io/badge/GitHub-仓库-181717?style=flat-square&logo=github" alt="GitHub 仓库"></a>
+<a href="https://github.com/Barryshen1/MeetingCopilot"><img src="https://img.shields.io/badge/GitHub-个人分支-181717?style=flat-square&logo=github" alt="GitHub 个人分支"></a>
 <a href="https://gitee.com/jwm0302/MeetingCopilot"><img src="https://img.shields.io/badge/Gitee-国内镜像-C71D23?style=flat-square&logo=gitee" alt="Gitee 国内镜像"></a>
 <a href="https://www.xiaohongshu.com/discovery/item/6a50df530000000007020f79?source=webshare&xhsshare=pc_web&xsec_token=ABbqtJXWoEQSYl-hNrBxJbXeGEZWoH6YjnAYj97pjKEpo=&xsec_source=pc_share"><img src="https://img.shields.io/badge/小红书-视频效果-ff2442?style=flat-square&logo=xiaohongshu&logoColor=white" alt="小红书视频效果"></a>
 <a href="https://www.xiaohongshu.com/discovery/item/6a50ddc800000000080027a6?source=webshare&xhsshare=pc_web&xsec_token=YBsteWYkixo34xXwfYeNXKL1SFbiOeg7mxQAZyq7wQIc4=&xsec_source=pc_share"><img src="https://img.shields.io/badge/小红书-开源推文-ff2442?style=flat-square&logo=xiaohongshu&logoColor=white" alt="小红书开源推文"></a>
@@ -17,12 +17,22 @@
 
 </div>
 
+## 个人分支：Codex CLI
+
+这是 [Barryshen1 的个人分支](https://github.com/Barryshen1/MeetingCopilot)，基于 [JWM0203/MeetingCopilot](https://github.com/JWM0203/MeetingCopilot)，保留原项目署名、素材和 Apache-2.0 协议。
+
+- **通过 Codex CLI 回答：**调用本机已安装并登录的 Codex CLI，支持回答、翻译、会议备忘和截图问答。配置见 [Codex CLI 指南](docs/CODEX_CLI.zh-CN.md)（[English](docs/CODEX_CLI.en.md)）。接入方式参考了 [Natively](https://github.com/Natively-AI-assistant/natively-cluely-ai-assistant) 的 CLI 服务商工作流。
+- **本地 macOS 应用：**运行 `npm run dist:mac:dir` 生成 Apple 芯片 `.app`，或 `npm run dist:mac` 生成临时签名的 ZIP。详见 [macOS 安装指南](docs/user/INSTALL_MACOS.zh-CN.md)。
+- **转录单独配置：**Codex CLI 处理文字和图片；语音转录仍需选择本地或云端后端。macOS 的会议 / 系统音频仍需通过 BlackHole 等可选择的输入设备路由。
+
+下方的上游下载和演示介绍原项目。上游安装包不包含本分支的 Codex CLI 接入。
+
 ## 下载
 
 **普通用户**：下载安装包直接用——不需要 Node.js、不需要 Python、不用敲命令。
 **开发者**：跳到 [开发](#开发) 一节，从源码运行。
 
-**[⬇ 下载最新版本](https://github.com/JWM0203/MeetingCopilot/releases/latest)**
+**[⬇ 下载上游最新 Windows 版本](https://github.com/JWM0203/MeetingCopilot/releases/latest)**
 
 | 文件 | 类型 | 适合 |
 |---|---|---|
@@ -33,7 +43,7 @@
 
 > ⚠️ **当前 Beta 版本尚未做代码签名**，Windows SmartScreen 会弹出提醒。确认文件来自官方发布页后，点「更多信息」→「仍要运行」。每个 `.exe` 旁都有同名的 `.exe.sha256`（CI 构建时算出的哈希），可用 `Get-FileHash .\MeetingCopilot-<版本>-win-x64.exe -Algorithm SHA256` 核对。
 
-> 🍎 **macOS**：本次没有提供安装包。macOS 支持从源码运行，见 [INSTALL_MACOS.en.md](docs/user/INSTALL_MACOS.en.md)。
+> 🍎 **macOS**：本分支支持本地构建 Apple 芯片应用，使用临时签名，未经过 Apple 公证。见 [macOS 安装指南](docs/user/INSTALL_MACOS.zh-CN.md)。
 
 **用户文档**：[快速开始](docs/user/QUICK_START.zh-CN.md) · [API Key 指南](docs/user/API_KEYS.zh-CN.md) · [故障排查](docs/user/TROUBLESHOOTING.zh-CN.md) · [Windows 安装与数据位置](docs/user/INSTALL_WINDOWS.zh-CN.md)
 
@@ -127,7 +137,7 @@
 |---|---|
 | 操作系统 | Windows 10 / 11，或 Apple 芯片 macOS 14+ |
 | 云端转录（**推荐**） | 阿里云百炼（DashScope）key，或 MiMo key |
-| 大模型 | 任意 OpenAI 兼容 API key——推荐 DeepSeek（快、便宜、带前缀缓存） |
+| 大模型 | 本机已安装并登录的 Codex CLI，或任意 OpenAI 兼容 API key |
 | 本地流式转录 | Python 3.10/3.11 + `funasr` + `torch`；支持 CUDA、Apple MPS 或 CPU 回退 |
 | MOSS 实验转录 | 独立 Python 3.12 环境；NVIDIA CUDA BF16 优先，失败自动回退 CPU |
 | 本地 Whisper（离线兜底） | `whisper-large-v3-turbo` ONNX 权重；Windows 用 DirectML，其他平台用 CPU |
@@ -168,16 +178,16 @@ MOSS 是整段生成模型，不是原生流式 ASR。本应用会在一句话�
 ## 隐私
 
 - API key 使用 Electron `safeStorage`（Windows DPAPI / macOS Keychain）加密落盘，永远不进渲染进程。
-- 全部数据位于 Electron 的用户数据目录（Windows：`%APPDATA%/MeetingCopilot/`；macOS：`~/Library/Application Support/MeetingCopilot/`）。无遥测、无账号、无服务器。
-- 用本地转录后端时，音频不出你的电脑；大模型自带 key，转录文本只发给你自己配置的服务商。
+- MeetingCopilot 数据位于 Electron 的用户数据目录（Windows：`%APPDATA%/MeetingCopilot/`；macOS：`~/Library/Application Support/MeetingCopilot/`）。MeetingCopilot 本身没有遥测、账号服务或托管后端。
+- 用本地转录后端时，音频不出你的电脑。转录文本、所选资料和主动请求的截图会发送给所配置的回答服务，包括选用的 Codex。Codex 自行管理凭据和服务连接，详见 [Codex CLI 指南](docs/CODEX_CLI.zh-CN.md)。
 - 诊断报告在本机生成，不含 Key、转写和简历内容，可以直接贴到公开 issue。
 
 ## 开发
 
 ```bash
-git clone https://github.com/JWM0203/MeetingCopilot.git
+git clone https://github.com/Barryshen1/MeetingCopilot.git
 cd MeetingCopilot
-npm install        # postinstall 自动应用 patches/（transformers.js 补丁，勿删）
+npm ci             # postinstall 自动应用 patches/（transformers.js 补丁，勿删）
 npm run build      # 构建 main + preload + renderer 到 out/
 npm start          # 跨平台；Windows 也可使用 start.bat
 ```
@@ -189,7 +199,9 @@ npm test            # 单元测试（prompt 组装 / VAD / 持久化 / 文档解
 npm run typecheck   # 双 tsconfig（主进程 + 渲染层）
 npm run dev         # vite HMR 开发模式
 npm run verify      # typecheck + 测试 + 构建，提交前的统一闸门
-npm run dist:dir    # 免打包构建到 release/win-unpacked
+npm run dist:dir    # 生成当前平台的未压缩应用
+npm run dist:mac:dir # Apple 芯片：release/mac-arm64/MeetingCopilot.app（临时签名）
+npm run dist:mac    # Apple 芯片：应用及 ZIP（临时签名，不发布）
 npm run dist:win    # 生成 nsis 安装包与免安装版
 npm run smoke:packaged        # 启动打包后的 exe，验证两条启动路径
 node tools/rt-asr-smoke.mjs   # 流式转录协议冒烟（需设 MC_RT_URL / MC_RT_KEY）

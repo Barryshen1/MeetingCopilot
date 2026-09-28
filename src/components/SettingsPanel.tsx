@@ -27,10 +27,12 @@ import {
   type EndpointTarget,
 } from '../../shared/providerTestRequests';
 import { sanitizeApiKeyInput } from '../../shared/keyInput';
+import type { CodexSettings } from '../../shared/codex';
 import { listMics } from '../audio/micCapture';
 import { useT } from '../i18n';
 import { ConnectionResult } from './providers/ConnectionResult';
 import { connectionResultCopy } from './providers/copy';
+import { CodexProviderSettings } from './CodexProviderSettings';
 
 type AsrBackend = 'local' | 'cloud' | 'cloud-realtime' | 'local-realtime';
 
@@ -120,6 +122,7 @@ export function SettingsPanel({
   onRerunWizard,
   onOpenDiagnostics,
   onOpenHelp,
+  onSettingsRefreshed,
 }: {
   settings: PublicSettings;
   onSaved: (s: PublicSettings) => void;
@@ -130,8 +133,12 @@ export function SettingsPanel({
   onOpenDiagnostics?: () => void;
   /** in-app help center (also reachable from the tray) */
   onOpenHelp?: () => void;
+  onSettingsRefreshed?: (settings: PublicSettings) => void;
 }) {
   const t = useT();
+  const [llmBackend, setLlmBackend] = useState(settings.llm.backend ?? 'openai-compatible');
+  const [codexConfig, setCodexConfig] = useState<CodexSettings>(settings.llm.codex ?? {});
+  const [codexTesting, setCodexTesting] = useState(false);
   const [baseUrl, setBaseUrl] = useState(settings.llm.baseUrl);
   const [model, setModel] = useState(settings.llm.model);
   const [answerLang, setAnswerLang] = useState<AnswerLang>(settings.llm.answerLang);
@@ -173,7 +180,7 @@ export function SettingsPanel({
    */
   const [live, setLive] = useState<PublicSettings>(settings);
   const [tests, setTests] = useState<Partial<Record<ProviderSlot, SlotTest>>>({});
-  const anyTesting = Object.values(tests).some((s) => s?.testing);
+  const anyTesting = codexTesting || Object.values(tests).some((s) => s?.testing);
   const resultCopy = connectionResultCopy(t);
 
   useEffect(() => {
@@ -205,7 +212,9 @@ export function SettingsPanel({
     }
     try {
       // main recorded the verdict into the slot — re-read so 上次测试… is current
-      setLive(await window.mc.getSettings());
+      const next = await window.mc.getSettings();
+      setLive(next);
+      onSettingsRefreshed?.(next);
     } catch {
       /* the verdict is already on screen; a stale snapshot is not worth failing */
     }
@@ -253,6 +262,12 @@ export function SettingsPanel({
       const rtApiKey = rtKey.patchValue();
       const next = await window.mc.setSettings({
         llm: {
+          backend: llmBackend,
+          codex: {
+            binaryPath: codexConfig.binaryPath?.trim() ?? '',
+            model: codexConfig.model?.trim() ?? '',
+            reasoningEffort: codexConfig.reasoningEffort,
+          },
           baseUrl: baseUrl.trim(),
           model: model.trim(),
           answerLang,
@@ -500,6 +515,7 @@ export function SettingsPanel({
   };
 
   const llmSummary = (): string => {
+    if (llmBackend === 'codex-cli') return `Codex CLI · ${codexConfig.model || t.settings.codexDefaultModel}`;
     const p = findPresetByEndpoint(baseUrl, model, 'text-llm');
     return p ? presetName(p) : `${model || '—'}`;
   };
@@ -589,6 +605,23 @@ export function SettingsPanel({
       </div>
 
       <div className="settings-row">
+        <label>{t.settings.llmBackend}</label>
+        <select value={llmBackend} disabled={anyTesting}
+          onChange={(e) => setLlmBackend(e.target.value as 'openai-compatible' | 'codex-cli')}>
+          <option value="openai-compatible">{t.settings.llmApiBackend}</option>
+          <option value="codex-cli">Codex CLI</option>
+        </select>
+      </div>
+      {llmBackend === 'codex-cli' ? (
+        <CodexProviderSettings
+          config={codexConfig}
+          saved={live}
+          onChange={setCodexConfig}
+          onTestingChange={setCodexTesting}
+          onSettingsRefreshed={(next) => { setLive(next); onSettingsRefreshed?.(next); }}
+        />
+      ) : <>
+      <div className="settings-row">
         <label>
           {t.settings.planLlm} · {t.settings.providerPreset}
         </label>
@@ -598,6 +631,7 @@ export function SettingsPanel({
         })}
       </div>
       {keyRow(t.settings.apiKey, llmKey, 'llm', llmTarget())}
+      </>}
       <div className="settings-row">
         <label>{t.settings.answerLangLabel}</label>
         <select value={answerLang} onChange={(e) => setAnswerLang(e.target.value as AnswerLang)}>
@@ -701,6 +735,7 @@ export function SettingsPanel({
           </div>
         )}
 
+        {llmBackend !== 'codex-cli' && <>
         <div className="settings-section">{t.settings.textSection}</div>
         <div className="settings-row">
           <label>{t.settings.baseUrl}</label>
@@ -748,6 +783,8 @@ export function SettingsPanel({
             placeholder={t.settings.visionProxyPlaceholder}
           />
         </div>
+        </>}
+        {llmBackend === 'codex-cli' && <div className="settings-hint">{t.settings.codexVisionHint}</div>}
 
         <div className="settings-section">{t.settings.asrSection}</div>
         <div className="settings-row">
@@ -791,7 +828,7 @@ export function SettingsPanel({
       )}
 
       <div className="settings-actions">
-        <button className="btn btn-primary" onClick={requestSave} disabled={saving}>
+        <button className="btn btn-primary" onClick={requestSave} disabled={saving || anyTesting}>
           {saving ? t.settings.saving : t.settings.save}
         </button>
         <button className="btn" onClick={onClose}>

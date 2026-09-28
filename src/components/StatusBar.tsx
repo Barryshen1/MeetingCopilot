@@ -43,11 +43,11 @@ export function StatusBar({
         {/* compact service health; the panel behind it carries the detail */}
         {health && (
           <button className="health-chips" onClick={onOpenHealth} title={t.health.chipsTitle}>
-            <span className={`health-chip is-${chipTone(health.asr)}`}>
-              {t.health.chipAsr} {MARK[chipTone(health.asr)]}
+            <span className={`health-chip is-${chipTone(health.asr)}`} title={t.health.state[health.asr.state]}>
+              {t.health.chipAsr} {health.asr.state === 'untested' ? '?' : MARK[chipTone(health.asr)]}
             </span>
-            <span className={`health-chip is-${chipTone(health.llm)}`}>
-              {t.health.chipLlm} {MARK[chipTone(health.llm)]}
+            <span className={`health-chip is-${chipTone(health.llm)}`} title={t.health.state[health.llm.state]}>
+              {t.health.chipLlm} {health.llm.state === 'untested' ? '?' : MARK[chipTone(health.llm)]}
             </span>
             <span className={`health-chip is-${chipTone(health.audio)}`}>
               {t.health.chipAudio} {MARK[chipTone(health.audio)]}

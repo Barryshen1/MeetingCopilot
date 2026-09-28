@@ -113,6 +113,7 @@ export function buildPlanPatch(plan: OnboardingPlan, opts: PlanPatchOptions): Se
   }
   if (def.llm) {
     patch.llm = {
+      backend: 'openai-compatible',
       baseUrl: def.llm.preset.baseUrl,
       model: def.llm.preset.model,
       providerId: def.llm.preset.providerId,

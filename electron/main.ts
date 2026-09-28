@@ -41,7 +41,11 @@ import { KnowledgeStore } from './knowledge';
 import { SessionStore } from './sessions';
 import { DOC_EXTENSIONS, extractDocText } from './docparse';
 import { basename } from 'path';
-import { chatOnce, chatStream, type ChatResult } from './llm/adapter';
+import { chatOnce, type ChatResult } from './llm/adapter';
+import { CodexClient } from './llm/codex';
+import { TextProvider } from './llm/textProvider';
+import { codexConfigKey, type CodexSettings, type CodexTestResult } from '../shared/codex';
+import { redactSecrets } from '../shared/redact';
 import { visionChat } from './llm/vision';
 import {
   buildAnswerMessages,
@@ -71,7 +75,7 @@ const MODEL_ID = 'onnx-community/whisper-large-v3-turbo-ONNX';
 /** tray 「检查更新」 (Phase 4). A real updater is Phase 5; until then the honest
  * answer is the releases page, opened through the same allowlist as every other
  * documentation link. */
-const RELEASES_URL = 'https://github.com/JWM0203/MeetingCopilot/releases/latest';
+const RELEASES_URL = 'https://github.com/Barryshen1/MeetingCopilot/releases';
 
 /** Region-selection overlay: shows the captured screen as an opaque bg (so a
  * content-protected window never renders black locally) and lets the user drag
@@ -118,6 +122,8 @@ function bootstrap(): void {
   let settings: SettingsStore;
   let knowledge: KnowledgeStore;
   let sessionStore: SessionStore;
+  let codex: CodexClient;
+  let textLlm: TextProvider;
   let osLang: UiLang = 'zh';
   /** set by before-quit so window handlers stop prompting mid-shutdown */
   let quitting = false;
@@ -400,6 +406,13 @@ function bootstrap(): void {
             );
             await wait(1200);
             await shoot('main-settings-common');
+            const hasCodex = await win?.webContents.executeJavaScript(
+              `(()=>{const el=document.getElementById('codex-model');if(!el)return false;el.scrollIntoView({block:'center'});return true;})()`,
+            );
+            if (hasCodex) {
+              await wait(500);
+              await shoot('main-settings-codex');
+            }
             // expand 高级 and scroll to it, so the collapsed half is reviewable too
             await win?.webContents.executeJavaScript(
               `(()=>{const p=document.querySelector('.settings');if(!p)return 0;p.querySelectorAll('details').forEach(d=>d.open=true);p.scrollTop=p.scrollHeight;return p.scrollHeight;})()`,
@@ -525,6 +538,13 @@ function bootstrap(): void {
     settings = new SettingsStore(join(app.getPath('userData'), 'settings.json'), cipher(), osLang);
     knowledge = new KnowledgeStore(join(app.getPath('userData'), 'knowledge.md'));
     sessionStore = new SessionStore(join(app.getPath('userData'), 'sessions.json'));
+    const codexWorkspace = join(app.getPath('userData'), 'codex-workspace');
+    mkdirSync(codexWorkspace, { recursive: true });
+    codex = new CodexClient({ cwd: codexWorkspace });
+    textLlm = new TextProvider(
+      () => ({ ...settings.data.llm, apiKey: settings.getLlmApiKey() }),
+      codex,
+    );
 
     // Electron's `audio: loopback` display-media source is Windows-only.
     // macOS/Linux use a selectable ordinary input in the renderer instead.
@@ -563,6 +583,7 @@ function bootstrap(): void {
     }
 
     async function doPrewarm(prefix: string, reason: string): Promise<void> {
+      if (textLlm.usesCodex) return;
       const apiKey = settings.getLlmApiKey();
       if (!apiKey || settings.data.llm.answerWithVision) return; // vision path ≠ DeepSeek
       lastPrefix = prefix;
@@ -712,6 +733,34 @@ function bootstrap(): void {
       }),
     );
 
+    // Codex keeps its own login. These endpoints never read or return tokens.
+    ipcMain.handle(IPC.codexStatus, (_e, config?: CodexSettings) =>
+      codex.check(config ?? settings.data.llm.codex ?? {}),
+    );
+    ipcMain.handle(IPC.codexTest, async (_e, incoming?: CodexSettings): Promise<CodexTestResult> => {
+      const config = { ...(incoming ?? settings.data.llm.codex ?? {}) };
+      const start = Date.now();
+      let result: CodexTestResult;
+      try {
+        const reply = await codex.chat(config, [
+          { role: 'system', content: 'This is a connection test. Reply with exactly OK.' },
+          { role: 'user', content: 'Reply with OK.' },
+        ], { onDelta: () => {} });
+        if (!reply.text.trim()) throw new Error('Codex returned an empty response.');
+        result = { ok: true, message: 'Codex CLI returned a response.', latencyMs: Date.now() - start };
+      } catch (error) {
+        result = { ok: false, message: redactSecrets((error as Error).message).slice(0, 500), latencyMs: Date.now() - start };
+      }
+      // A test of an unsaved draft must not mark another configuration healthy.
+      if (settings.data.llm.backend === 'codex-cli' && codexConfigKey(config) === codexConfigKey(settings.data.llm.codex)) {
+        settings.recordVerification('llm', {
+          lastTestAt: new Date().toISOString(), lastTestOk: result.ok,
+          lastTestCode: result.ok ? 'OK' : 'PROVIDER_ERROR', latencyMs: result.latencyMs,
+        });
+      }
+      return result;
+    });
+
     // ---- provider connection tests (Phase 3) ----
     // Runs ONLY on an explicit user action from the wizard or Settings. The
     // candidate key lives in a local const for the duration of one call: it is
@@ -730,7 +779,10 @@ function bootstrap(): void {
           apiKey,
         );
         // one dedicated write; applyPatch() would restart the ASR engine
-        if (request.slot) {
+        if (request.slot && (request.slot !== 'llm' || (
+          settings.data.llm.backend !== 'codex-cli' &&
+          request.baseUrl === settings.data.llm.baseUrl && request.model === settings.data.llm.model
+        ))) {
           settings.recordVerification(request.slot, {
             lastTestAt: new Date().toISOString(),
             lastTestOk: result.ok,
@@ -932,8 +984,7 @@ function bootstrap(): void {
     const llmControllers = new Map<string, AbortController>();
     ipcMain.on(IPC.llmAsk, (_e, payload: LlmAskPayload) => {
       const sendEv = (ev: LlmEvent) => win?.webContents.send(IPC.llmEvent, ev);
-      const apiKey = settings.getLlmApiKey();
-      if (!apiKey) {
+      if (!textLlm.configured) {
         sendEv({ requestId: payload.requestId, kind: 'error', message: T().noApiKey });
         return;
       }
@@ -959,6 +1010,7 @@ function bootstrap(): void {
       // "answer with multimodal": route through the vision provider (proxy-aware,
       // non-streaming). Otherwise stream from the text LLM (direct, fastest).
       const useVision =
+        !textLlm.usesCodex &&
         settings.data.llm.answerWithVision &&
         payload.mode !== 'translate' &&
         !!settings.data.vision.baseUrl &&
@@ -985,8 +1037,7 @@ function bootstrap(): void {
             sendEv({ requestId: payload.requestId, kind: 'delta', text });
             return { text };
           })
-        : chatStream(
-            { baseUrl: settings.data.llm.baseUrl, model: settings.data.llm.model, apiKey },
+        : textLlm.stream(
             messages,
             { onDelta: (text) => sendEv({ requestId: payload.requestId, kind: 'delta', text }) },
             ac.signal,
@@ -1020,11 +1071,9 @@ function bootstrap(): void {
     ipcMain.handle(
       IPC.memoUpdate,
       async (_e, p: { memo: string; question: string; answer: string }): Promise<string> => {
-        const apiKey = settings.getLlmApiKey();
-        if (!apiKey) return '';
+        if (!textLlm.configured) return '';
         try {
-          const r = await chatOnce(
-            { baseUrl: settings.data.llm.baseUrl, model: settings.data.llm.model, apiKey },
+          const r = await textLlm.once(
             buildMemoUpdateMessages(p.memo ?? '', p.question ?? '', p.answer ?? ''),
             { maxTokens: 700, temperature: 0.2 },
           );
@@ -1039,10 +1088,8 @@ function bootstrap(): void {
     // Cheap one-shot translation to Chinese (inline transcript 对照; off-session,
     // no history pollution). Uses the fast text model (deepseek-chat).
     ipcMain.handle(IPC.translateText, async (_e, text: string) => {
-      const apiKey = settings.getLlmApiKey();
-      if (!apiKey) throw new Error(T().noApiKeyShort);
-      const r = await chatStream(
-        { baseUrl: settings.data.llm.baseUrl, model: settings.data.llm.model, apiKey },
+      if (!textLlm.configured) throw new Error(T().noApiKeyShort);
+      const r = await textLlm.stream(
         buildTranslateMessages(text),
         { onDelta: () => {} },
       );
@@ -1057,7 +1104,7 @@ function bootstrap(): void {
       const sendEv = (ev: LlmEvent) => win?.webContents.send(IPC.llmEvent, ev);
       const vision = settings.data.vision;
       const apiKey = settings.getVisionApiKey();
-      if (!vision.baseUrl || !vision.model || !apiKey) {
+      if (!textLlm.usesCodex && (!vision.baseUrl || !vision.model || !apiKey)) {
         sendEv({
           requestId: payload.requestId,
           kind: 'error',
@@ -1074,15 +1121,22 @@ function bootstrap(): void {
             .getSources({ types: ['screen'], thumbnailSize: { width: 1600, height: 900 } })
             .then((sources) => sources[0].thumbnail.toDataURL());
       imgP
-        .then((dataUrl) =>
-          visionChat(
-            { baseUrl: vision.baseUrl!, model: vision.model!, apiKey, proxyUrl: vision.proxyUrl },
-            buildVisionMessages(payload.question, dataUrl, payload.background || knowledge.text),
-            ac.signal,
-          ),
-        )
+        .then((dataUrl) => {
+          const messages = buildVisionMessages(payload.question, dataUrl, payload.background || knowledge.text);
+          if (textLlm.usesCodex) {
+            return textLlm.stream(messages, {
+              onDelta: (text) => sendEv({ requestId: payload.requestId, kind: 'delta', text }),
+            }, ac.signal).then((r) => r.text);
+          }
+          return visionChat(
+            { baseUrl: vision.baseUrl!, model: vision.model!, apiKey: apiKey!, proxyUrl: vision.proxyUrl },
+            messages, ac.signal,
+          ).then((text) => {
+            sendEv({ requestId: payload.requestId, kind: 'delta', text });
+            return text;
+          });
+        })
         .then((text) => {
-          sendEv({ requestId: payload.requestId, kind: 'delta', text });
           sendEv({ requestId: payload.requestId, kind: 'done', text });
         })
         .catch((e: Error) => {
@@ -1138,6 +1192,7 @@ function bootstrap(): void {
   });
 
   app.on('before-quit', () => {
+    codex?.dispose();
     quitting = true;
     globalShortcut.unregisterAll();
     tray.destroy();

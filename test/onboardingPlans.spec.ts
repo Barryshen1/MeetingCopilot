@@ -61,6 +61,7 @@ describe('buildPlanPatch', () => {
       realtime: { baseUrl: asr.baseUrl, model: asr.model },
     });
     expect(patch.llm).toEqual({
+      backend: 'openai-compatible',
       baseUrl: llm.baseUrl,
       model: llm.model,
       providerId: llm.providerId,
