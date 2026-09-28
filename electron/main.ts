@@ -30,7 +30,7 @@ import {
   recordDiagnosticError,
 } from './diagnostics';
 import { openExternalUrl } from './externalLinks';
-import { FunasrSidecar, parseLocalWsPort, pythonCandidates, resolvePython } from './funasrSidecar';
+import { FunasrSidecar, parseLocalWsPort, pythonCandidates, resolveConfiguredPython, sidecarModelArg } from './funasrSidecar';
 import { resolveTestApiKey, runProviderTest, withoutCandidateKey } from './providerTest';
 import { getResourceRoot } from './resourcePaths';
 import { SettingsStore, plainCipher, type SecretCipher } from './settings';
@@ -191,7 +191,13 @@ function bootstrap(): void {
       try {
         // NOT app.getAppPath(): packaged that resolves inside app.asar, which
         // python cannot read and the OS cannot use as a spawn cwd
-        await sidecar.ensureRunning(port, getResourceRoot(), opts.cloud?.model);
+        await sidecar.ensureRunning(
+          port,
+          getResourceRoot(),
+          opts.cloud?.model,
+          settings.data.asr.localRealtime?.pythonPath,
+          join(app.getPath('userData'), 'models', 'modelscope'),
+        );
         console.log(`[sidecar] local ASR ready on :${port}`);
       } catch (e) {
         const message = T().sidecarFail((e as Error).message);
@@ -654,12 +660,30 @@ function bootstrap(): void {
       }
       asr.flush();
     });
+    const makePythonProbe = () => new LocalPythonProbe(() =>
+      resolveConfiguredPython(
+        settings.data.asr.localRealtime?.pythonPath,
+        pythonCandidates(getResourceRoot()),
+      ),
+    );
+    let pythonProbe = makePythonProbe();
+
     ipcMain.handle(IPC.settingsGet, () => publicSettings());
     // pull-based replay: renderer asks after subscribing, so instant-ready
     // cloud engines can't race the subscription (stuck "模型加载中" bug)
     ipcMain.handle(IPC.asrReplay, () => ({ ready: asr.lastReady, status: asr.lastStatus }));
-    ipcMain.handle(IPC.settingsSet, (_e, patch: SettingsPatch) => {
+    ipcMain.handle(IPC.settingsSet, async (_e, patch: SettingsPatch) => {
+      const requestedPython = patch.asr?.localRealtime?.pythonPath;
+      const effectiveBackend = patch.asr?.backend ?? settings.data.asr.backend;
+      const effectiveModel = patch.asr?.localRealtime?.model ?? settings.data.asr.localRealtime?.model;
+      if (requestedPython?.trim() && effectiveBackend === 'local-realtime' &&
+          sidecarModelArg(effectiveModel) !== 'moss') {
+        // Check before writing: an invalid saved path must not silently switch
+        // the packaged app to a different interpreter on the next launch.
+        await resolveConfiguredPython(requestedPython, pythonCandidates(getResourceRoot()));
+      }
       settings.applyPatch(patch);
+      if (requestedPython !== undefined) pythonProbe = makePythonProbe();
       if (patch.ui?.hotkeyToggle !== undefined || patch.ui?.hotkeyShot !== undefined) {
         registerHotkeys();
       }
@@ -815,10 +839,6 @@ function bootstrap(): void {
     // Purely local: built on request, returned to the renderer for the user to
     // copy. Nothing is uploaded, nothing is written to disk, and the builder
     // never receives a key, a transcript or any knowledge-base text.
-    const pythonProbe = new LocalPythonProbe(() =>
-      resolvePython(pythonCandidates(getResourceRoot())),
-    );
-
     ipcMain.handle(IPC.diagnosticsGet, (): string => {
       pythonProbe.start(); // background; 'unknown' until it settles
       const ready = asr.lastReady?.kind === 'ready' ? asr.lastReady : null;

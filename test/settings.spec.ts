@@ -170,6 +170,18 @@ describe('SettingsStore', () => {
     expect(s2.getPublic().asr.localRealtime.model).toBe('paraformer-zh-streaming');
   });
 
+  it('persists the FunASR interpreter path without changing credentials or other ASR slots', () => {
+    const s = new SettingsStore(file, fakeCipher);
+    s.applyPatch({ asr: { cloud: { apiKey: 'sk-keep' } } });
+    s.applyPatch({ asr: { localRealtime: { pythonPath: '/Users/me/project/.venv/bin/python' } } });
+    const loaded = new SettingsStore(file, fakeCipher);
+    expect(loaded.getPublic().asr.localRealtime.pythonPath).toBe('/Users/me/project/.venv/bin/python');
+    expect(loaded.getCloudAsrApiKey()).toBe('sk-keep');
+    expect(loaded.getPublic().asr.localRealtime.model).toBe('fun-asr-nano');
+    loaded.applyPatch({ asr: { localRealtime: { pythonPath: '' } } });
+    expect(new SettingsStore(file, fakeCipher).getPublic().asr.localRealtime.pythonPath).toBe('');
+  });
+
   it('stores a nested cloud ASR provider + key, round-trips, and never leaks it', () => {
     const s1 = new SettingsStore(file, fakeCipher);
     s1.applyPatch({

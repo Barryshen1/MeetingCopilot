@@ -56,7 +56,7 @@ This affects only the local sidecar ASR and local Whisper backends. **Cloud tran
 - The installer ships neither Python nor model weights. Local backends need an environment you provide — see [docs/windows/SETUP.md](../windows/SETUP.md).
 - The first run downloads the model from ModelScope / HuggingFace (~880 MB for paraformer, ~1.7 GB for Nano, ~1.7 GB for MOSS). The UI stays on "loading" for the whole download; a run that is not ready after 15 minutes times out.
 - Common messages:
-  - `no usable Python found (tried …)`: none of the candidate interpreters ran. Create a `.venv` or set `MC_FUNASR_PYTHON` to the full path of one.
+  - `no usable Python found`: none of the candidate interpreters ran. Create a `.venv` or set the FunASR Python path in Settings.
   - `the local ASR engine exited (code …); check the conda env "funasr"`: Python started but the script died, usually incomplete dependencies.
   - `sidecar script not found: …`: the sidecar script is missing from the install directory; reinstall.
 - To keep working right now: Settings → ASR backend → "Cloud streaming", and add an Alibaba Cloud key.

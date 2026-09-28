@@ -215,6 +215,8 @@ export interface SettingsFile {
      * model is FunASR Nano, paraformer streaming, or experimental MOSS */
     localRealtime?: {
       model?: string;
+      /** Absolute Python interpreter path for FunASR; MOSS has its own environment. */
+      pythonPath?: string;
     };
   };
   ui: {
@@ -299,7 +301,7 @@ export interface PublicSettings {
       apiKeyHint?: string;
       verification?: ProviderVerification;
     };
-    localRealtime: { model?: string };
+    localRealtime: { model?: string; pythonPath?: string };
   };
   ui: {
     stealth: boolean;
@@ -357,7 +359,7 @@ export interface SettingsPatch {
       apiKey?: string;
       verification?: ProviderVerification;
     };
-    localRealtime?: { model?: string };
+    localRealtime?: { model?: string; pythonPath?: string };
   };
   ui?: {
     stealth?: boolean;

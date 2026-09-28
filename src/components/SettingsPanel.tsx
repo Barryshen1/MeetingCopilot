@@ -156,6 +156,9 @@ export function SettingsPanel({
   const [rtLocalModel, setRtLocalModel] = useState(
     settings.asr.localRealtime.model ?? 'fun-asr-nano',
   );
+  const [localPythonPath, setLocalPythonPath] = useState(
+    settings.asr.localRealtime.pythonPath ?? '',
+  );
   const [hotkeyShot, setHotkeyShot] = useState(settings.ui.hotkeyShot);
   const [autoLaunch, setAutoLaunch] = useState(settings.ui.autoLaunch);
   const [fontScale, setFontScale] = useState<FontScale>(settings.ui.fontScale ?? 'medium');
@@ -165,6 +168,7 @@ export function SettingsPanel({
   const [micDeviceId, setMicDeviceId] = useState(settings.audio.micDeviceId ?? '');
   const [devices, setDevices] = useState<{ deviceId: string; label: string }[]>([]);
   const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState('');
   /** weak-crypto confirmation is pending; nothing has been sent to main yet */
   const [confirmWeak, setConfirmWeak] = useState(false);
 
@@ -256,6 +260,7 @@ export function SettingsPanel({
   const save = async () => {
     setConfirmWeak(false);
     setSaving(true);
+    setSaveError('');
     try {
       const llmApiKey = llmKey.patchValue();
       const visionApiKey = visionKey.patchValue();
@@ -313,7 +318,7 @@ export function SettingsPanel({
             model: rtModel.trim(),
             ...(rtApiKey !== undefined ? { apiKey: rtApiKey } : {}),
           },
-          localRealtime: { model: rtLocalModel },
+          localRealtime: { model: rtLocalModel, pythonPath: localPythonPath.trim() },
         },
         ui: {
           hotkeyToggle: hotkey.trim(),
@@ -333,6 +338,8 @@ export function SettingsPanel({
       cloudKey.reset();
       rtKey.reset();
       onSaved(next);
+    } catch (e) {
+      setSaveError(t.settings.saveFailed((e as Error).message));
     } finally {
       setSaving(false);
     }
@@ -567,18 +574,34 @@ export function SettingsPanel({
         />
       </div>
       {asrBackend === 'local-realtime' && (
-        <div className="settings-row">
-          <label>{t.settings.localRtModel}</label>
-          <InWindowSelect
-            value={rtLocalModel}
-            ariaLabel={t.settings.localRtModel}
-            onChange={setRtLocalModel}
-            options={LOCAL_REALTIME_MODELS.map((m) => ({
-              value: m.value,
-              label: t.uiLang === 'zh' ? m.nameZh : m.nameEn,
-            }))}
-          />
-        </div>
+        <>
+          <div className="settings-row">
+            <label>{t.settings.localRtModel}</label>
+            <InWindowSelect
+              value={rtLocalModel}
+              ariaLabel={t.settings.localRtModel}
+              onChange={setRtLocalModel}
+              options={LOCAL_REALTIME_MODELS.map((m) => ({
+                value: m.value,
+                label: t.uiLang === 'zh' ? m.nameZh : m.nameEn,
+              }))}
+            />
+          </div>
+          <div className="settings-row">
+            <label htmlFor="funasr-python-path">{t.settings.localRtPythonPath}</label>
+            <input
+              id="funasr-python-path"
+              value={localPythonPath}
+              onChange={(e) => setLocalPythonPath(e.target.value)}
+              placeholder={window.mc.platform === 'win32'
+                ? 'C:\\path\\to\\python.exe'
+                : '/absolute/path/to/.venv/bin/python'}
+              autoComplete="off"
+              spellCheck={false}
+            />
+          </div>
+          <div className="settings-hint">{t.settings.localRtPythonHint}</div>
+        </>
       )}
       {asrBackend === 'cloud-realtime' && (
         <>
@@ -874,6 +897,7 @@ export function SettingsPanel({
         </div>
       )}
 
+      {saveError && <div className="settings-warn" role="alert">{saveError}</div>}
       <div className="settings-actions">
         <button className="btn btn-primary" onClick={requestSave} disabled={saving || anyTesting}>
           {saving ? t.settings.saving : t.settings.save}

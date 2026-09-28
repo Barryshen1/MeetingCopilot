@@ -56,7 +56,7 @@ macOS 没有系统回环采集，必须先装 BlackHole 之类的虚拟音频设
 - 安装包不包含 Python 和模型权重。本地后端需要你自己准备环境，步骤见 [docs/windows/SETUP.zh-CN.md](../windows/SETUP.zh-CN.md)。
 - 首次运行会从 ModelScope / HuggingFace 下载模型（paraformer 约 880 MB，Nano 约 1.7 GB，MOSS 约 1.7 GB），下载期间界面一直显示加载中，属正常现象；超过 15 分钟未就绪会报超时。
 - 常见报错含义：
-  - `no usable Python found (tried …)`：候选解释器都跑不起来，创建 `.venv` 或设置环境变量 `MC_FUNASR_PYTHON` 指向完整路径。
+  - `no usable Python found`：候选解释器都跑不起来，创建 `.venv`，或在设置中指定 FunASR Python 路径。
   - `the local ASR engine exited (code …); check the conda env "funasr"`：Python 起来了但脚本退出，多为依赖没装全。
   - `sidecar script not found: …`：安装目录里缺少侧车脚本，重新安装一次。
 - 想先继续开会：设置 → 转录后端 → 改成「云端流式」，填一个阿里云百炼 Key 即可。

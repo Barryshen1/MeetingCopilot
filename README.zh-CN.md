@@ -157,7 +157,7 @@
 - **Windows**（conda 环境，NVIDIA 显卡）：见 [docs/windows/SETUP.zh-CN.md](docs/windows/SETUP.zh-CN.md#本地流式-funasr默认转录后端)
 - **macOS**（项目 `.venv`，Apple MPS）：见 [docs/macos/SETUP.zh-CN.md](docs/macos/SETUP.zh-CN.md#本地流式-funasr默认转录后端)
 
-Python 装在别处时，设置环境变量 `MC_FUNASR_PYTHON` 指向完整路径即可。
+安装版请在 **设置 → 转录（ASR）→ FunASR Python 路径** 填入本地环境解释器的绝对路径（如项目的 `.venv/bin/python`）；保存时会检查路径和 Python 版本。留空时依次尝试 `MC_FUNASR_PYTHON`、项目 `.venv` 和系统 Python。FunASR 模型默认缓存在应用数据目录的 `models/modelscope` 下，可用 `MODELSCOPE_CACHE` 覆盖。
 
 ### MOSS-Transcribe-Diarize 0.9B（实验）
 

@@ -453,7 +453,10 @@ export class SettingsStore {
           apiKeyHint: d.asr.realtime?.apiKeyHint,
           verification: d.asr.realtime?.verification,
         },
-        localRealtime: { model: d.asr.localRealtime?.model },
+        localRealtime: {
+          model: d.asr.localRealtime?.model,
+          pythonPath: d.asr.localRealtime?.pythonPath,
+        },
       },
       // knowledge lives in a separate file; main fills the real char count
       knowledge: { chars: 0 },

@@ -161,7 +161,7 @@ auto` picks CUDA / Apple MPS / CPU with automatic CPU fallback.
 - **Windows** (conda env, NVIDIA GPU): see [docs/windows/SETUP.md](docs/windows/SETUP.md#local-streaming-funasr-default-asr-backend)
 - **macOS** (project `.venv`, Apple MPS): see [docs/macos/SETUP.md](docs/macos/SETUP.md#local-streaming-funasr-default-asr-backend)
 
-If your Python lives elsewhere, set `MC_FUNASR_PYTHON` to its full path.
+In the packaged app, set **Settings → Transcription (ASR) → FunASR Python path** to the absolute interpreter path in your local environment (for example, the project's `.venv/bin/python`). Saving checks that the path runs Python 3. Leave it blank to try `MC_FUNASR_PYTHON`, the project `.venv`, then system Python. FunASR models are cached under the app's `models/modelscope` data directory by default; `MODELSCOPE_CACHE` can override it.
 
 ### MOSS-Transcribe-Diarize 0.9B (experimental)
 

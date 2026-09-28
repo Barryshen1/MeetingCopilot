@@ -43,15 +43,21 @@ To capture a meeting app (Zoom / Teams / …) instead of your built-in mic:
    ```bash
    brew install blackhole-2ch
    ```
+   Restart macOS so Core Audio loads the new device.
 2. **Create a Multi-Output Device** so you still *hear* the meeting:
    open **Audio MIDI Setup** → `+` → *Create Multi-Output Device* → check both
-   your speakers/headphones **and** BlackHole 2ch.
+   your speakers/headphones **and** BlackHole 2ch. Keep the speakers as the
+   primary device and enable drift correction for BlackHole.
 3. **Send system output to it**: System Settings → Sound → Output → select the
    Multi-Output Device. Sound now plays through your speakers *and* mirrors
    into BlackHole.
-4. **Pick BlackHole in MeetingCopilot**: press **▶ Start** (grant microphone
-   permission on first use), then choose *BlackHole 2ch* in the input selector
-   next to the button.
+4. **Pick BlackHole in MeetingCopilot**: in Settings → Audio Devices, choose
+   *BlackHole 2ch* as the other-party audio input, then press **▶ Start**.
+   Grant microphone permission on first use.
+
+macOS may disable the global volume keys while the Multi-Output Device is the
+default; adjust the speaker volume in Audio MIDI Setup or switch the default
+output back to the speakers when you are done transcribing.
 
 Echo cancellation / noise suppression / auto gain are disabled on this channel
 so the virtual device's PCM arrives untouched; the separate **🎤** channel keeps
@@ -68,13 +74,18 @@ python3.11 -m venv .venv
 npm start
 ```
 
-The app discovers `.venv` automatically (resolution order: `MC_FUNASR_PYTHON`
-env var → project `.venv/bin/python` → `python3` → `python`). `--device auto`
+When running from source, the app discovers the project `.venv` automatically.
+The packaged app does not contain that environment: set **Settings →
+Transcription (ASR) → FunASR Python path** to the absolute path of the repo's
+`.venv/bin/python`. Saving checks that the path exists and runs Python 3; errors
+appear in Settings. If left blank, discovery tries `MC_FUNASR_PYTHON` → the
+resource directory's `.venv/bin/python` → `python3` → `python`. `--device auto`
 tries CUDA, then Apple MPS, then CPU; accelerator initialization failures retry
 on CPU automatically. Only the selected FunASR model is loaded to keep memory
-bounded on 8 GB machines — switching models restarts the sidecar (60–90 s).
-The selected model downloads from ModelScope on first run (~880 MB for
-paraformer, ~1.7 GB for Nano).
+bounded on 8 GB machines — switching models restarts the sidecar. The selected
+model downloads from ModelScope on first run (~880 MB for paraformer, ~1.7 GB
+for Nano). The default cache is `models/modelscope` under the app data directory;
+`MODELSCOPE_CACHE` can override it.
 
 ## Stealth limits
 

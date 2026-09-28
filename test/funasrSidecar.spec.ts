@@ -1,10 +1,15 @@
 import { describe, expect, it } from 'vitest';
+import { mkdtempSync, rmSync, writeFileSync } from 'fs';
+import { tmpdir } from 'os';
+import { join } from 'path';
 import {
   parseLocalWsPort,
   mossPythonCandidates,
   pythonCandidates,
   resolvePython,
+  resolveConfiguredPython,
   sidecarEnvironment,
+  sidecarLaunchArgs,
   sidecarModelArg,
   sidecarStopPlan,
 } from '../electron/funasrSidecar';
@@ -46,10 +51,41 @@ describe('macOS sidecar portability', () => {
     expect(windows.at(-1)).toBe('python');
   });
 
-  it('reports every attempted Python when no runtime is executable', async () => {
-    await expect(resolvePython(['/bad/python', 'python3'], async () => false)).rejects.toThrow(
-      '/bad/python, python3',
-    );
+  it('reports missing Python without exposing candidate paths', async () => {
+    const result = resolvePython(['/bad/python', 'python3'], async () => false);
+    await expect(result).rejects.toThrow('no usable Python found');
+    await expect(result).rejects.not.toThrow('/bad/python');
+  });
+
+  it('uses a saved absolute interpreter ahead of fallback candidates', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'mc-funasr-python-'));
+    const configured = join(dir, 'python');
+    writeFileSync(configured, 'placeholder');
+    const tried: string[] = [];
+    try {
+      expect(await resolveConfiguredPython(configured, ['python3'], async (path) => {
+        tried.push(path);
+        return true;
+      })).toBe(configured);
+      expect(tried).toEqual([configured]);
+      for (const [path, probe, expected] of [
+        [configured, async () => false, 'cannot run --version'],
+        [join(dir, 'missing'), async () => true, 'does not exist'],
+        ['relative/python', async () => true, 'must be absolute'],
+      ] as const) {
+        await expect(resolveConfiguredPython(path, ['python3'], probe))
+          .rejects.toThrow(expected);
+        await expect(resolveConfiguredPython(path, ['python3'], probe))
+          .rejects.not.toThrow(path);
+      }
+      expect(await resolveConfiguredPython('', ['python3'], async () => true)).toBe('python3');
+      await expect(resolveConfiguredPython(process.execPath, []))
+        .rejects.toThrow('cannot run --version');
+      await expect(resolvePython([configured], async () => false))
+        .rejects.not.toThrow(configured);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 
   it('loads only the selected model', () => {
@@ -70,11 +106,35 @@ describe('macOS sidecar portability', () => {
     const base = { PATH: 'test-path' };
     expect(sidecarEnvironment('moss', base)).toEqual({
       PATH: 'test-path',
+      PYTHONDONTWRITEBYTECODE: '1',
       HF_HUB_DISABLE_XET: '1',
     });
-    expect(sidecarEnvironment('nano', base)).toBe(base);
-    expect(sidecarEnvironment('paraformer', base)).toBe(base);
+    expect(sidecarEnvironment('nano', base)).toEqual({ ...base, PYTHONDONTWRITEBYTECODE: '1' });
+    expect(sidecarEnvironment('paraformer', base)).toEqual({ ...base, PYTHONDONTWRITEBYTECODE: '1' });
     expect(sidecarEnvironment('moss', { HF_HUB_DISABLE_XET: '0' }).HF_HUB_DISABLE_XET).toBe('0');
+  });
+
+  it('routes FunASR downloads to the supplied durable ModelScope cache', () => {
+    const base = { PATH: 'test-path' };
+    const cache = '/user-data/models/modelscope';
+    expect(sidecarEnvironment('nano', base, cache)).toEqual({ ...base, PYTHONDONTWRITEBYTECODE: '1', MODELSCOPE_CACHE: cache });
+    expect(sidecarEnvironment('paraformer', base, cache)).toEqual({ ...base, PYTHONDONTWRITEBYTECODE: '1', MODELSCOPE_CACHE: cache });
+    expect(sidecarEnvironment('nano', { ...base, MODELSCOPE_CACHE: '/custom' }, cache).MODELSCOPE_CACHE)
+      .toBe('/custom');
+    expect(sidecarEnvironment('moss', base, cache).MODELSCOPE_CACHE).toBeUndefined();
+  });
+
+  it('prevents Python bytecode writes for every bundled sidecar', () => {
+    const base = { PYTHONDONTWRITEBYTECODE: '0' };
+    for (const model of ['nano', 'paraformer', 'moss'] as const) {
+      expect(sidecarEnvironment(model, base).PYTHONDONTWRITEBYTECODE).toBe('1');
+      expect(sidecarLaunchArgs(model, '/signed/Resources/tools/server.py', 10097, 'cpu')[0]).toBe('-B');
+    }
+    expect(base.PYTHONDONTWRITEBYTECODE).toBe('0');
+    expect(sidecarLaunchArgs('moss', '/script.py', 10097, 'cpu'))
+      .toEqual(['-B', '/script.py', '--port', '10097', '--device', 'cpu']);
+    expect(sidecarLaunchArgs('nano', '/script.py', 10097))
+      .toEqual(['-B', '/script.py', '--port', '10097', '--model', 'nano', '--device', 'auto']);
   });
 
   it('kills the process tree with the platform-native strategy', () => {

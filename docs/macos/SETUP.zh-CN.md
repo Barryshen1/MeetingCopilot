@@ -38,9 +38,12 @@ npm start
    ```bash
    brew install blackhole-2ch
    ```
-2. **创建多输出设备**，保证你自己还能听到会议声音：打开**音频 MIDI 设置** → `+` → *创建多输出设备* → 同时勾选你的扬声器/耳机**和** BlackHole 2ch。
+   安装后重启 macOS，让 Core Audio 加载新设备。
+2. **创建多输出设备**，保证你自己还能听到会议声音：打开**音频 MIDI 设置** → `+` → *创建多输出设备* → 同时勾选你的扬声器/耳机**和** BlackHole 2ch。将扬声器设为主设备，并为 BlackHole 开启漂移校正。
 3. **把系统输出指向它**：系统设置 → 声音 → 输出 → 选择该多输出设备。此后声音照常从扬声器播放，同时镜像进 BlackHole。
-4. **在 MeetingCopilot 里选中 BlackHole**：点 **▶ 开始**（首次需授权麦克风），然后在按钮旁的输入下拉里选 *BlackHole 2ch*。
+4. **在 MeetingCopilot 里选中 BlackHole**：打开 **设置 → 音频设备**，先将「对方音频输入」设为 *BlackHole 2ch*，再点 **▶ 开始**。首次使用时需授权麦克风。
+
+将多输出设备设为默认输出时，macOS 可能暂时禁用全局音量键；可在「音频 MIDI 设置」调节扬声器音量，或结束转写后把默认输出切回扬声器。
 
 该通道已关闭回声消除/降噪/自动增益，虚拟设备的 PCM 原样进入转录；独立的 **🎤** 通道仍保留正常麦克风处理，用于你自己的声音。
 
@@ -55,7 +58,7 @@ python3.11 -m venv .venv
 npm start
 ```
 
-应用会自动发现 `.venv`（查找顺序：环境变量 `MC_FUNASR_PYTHON` → 项目 `.venv/bin/python` → `python3` → `python`）。`--device auto` 依次尝试 CUDA、Apple MPS、CPU；加速器初始化失败自动退回 CPU。应用只加载当前选中的一个 FunASR 模型，控制 8 GB 机型的内存占用——切换模型会重启引擎（60–90 秒）。选中的模型首次运行时从 ModelScope 自动下载（paraformer 约 880 MB，Nano 约 1.7 GB）。
+源码运行时应用会自动发现项目 `.venv`。安装版的资源目录不包含项目 `.venv`，请在 **设置 → 转录（ASR）→ FunASR Python 路径** 填入仓库环境中 `.venv/bin/python` 的绝对路径。保存时会检查路径是否存在、是否能运行 Python 3；错误会显示在设置页。留空时依次尝试 `MC_FUNASR_PYTHON` → 资源目录 `.venv/bin/python` → `python3` → `python`。`--device auto` 依次尝试 CUDA、Apple MPS、CPU；加速器初始化失败自动退回 CPU。应用只加载当前选中的一个 FunASR 模型，控制 8 GB 机型的内存占用——切换模型会重启引擎。选中的模型首次运行时从 ModelScope 自动下载（paraformer 约 880 MB，Nano 约 1.7 GB），默认缓存于应用数据目录的 `models/modelscope`（可用 `MODELSCOPE_CACHE` 覆盖）。
 
 ## 隐身限制
 

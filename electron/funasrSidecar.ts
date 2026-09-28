@@ -16,8 +16,8 @@
  */
 import { spawn, execFile, type ChildProcess } from 'child_process';
 import { connect } from 'net';
-import { existsSync } from 'fs';
-import { join, posix, win32 } from 'path';
+import { existsSync, statSync } from 'fs';
+import { isAbsolute, join, posix, win32 } from 'path';
 
 const DEFAULT_PYTHON = 'C:\\ProgramData\\miniconda3\\envs\\funasr\\python.exe';
 const DEFAULT_MOSS_PYTHON = 'C:\\ProgramData\\miniconda3\\envs\\moss-asr\\python.exe';
@@ -67,7 +67,9 @@ export function mossPythonCandidates(
 
 async function canRunPython(candidate: string): Promise<boolean> {
   return new Promise((resolve) => {
-    execFile(candidate, ['--version'], { timeout: 5_000 }, (error) => resolve(!error));
+    execFile(candidate, ['--version'], { timeout: 5_000 }, (error, stdout, stderr) =>
+      resolve(!error && /^Python 3\.\d+/.test(`${stdout}${stderr}`.trim())),
+    );
   });
 }
 
@@ -79,8 +81,34 @@ export async function resolvePython(
     if (await probe(candidate)) return candidate;
   }
   throw new Error(
-    `no usable Python found (tried ${candidates.join(', ')}); create a .venv or set MC_FUNASR_PYTHON`,
+    'no usable Python found; set a Python path in Settings or MC_FUNASR_PYTHON',
   );
+}
+
+/** An explicit saved path is authoritative: never silently use a different Python. */
+export async function resolveConfiguredPython(
+  configuredPath: string | undefined,
+  candidates: string[],
+  probe: (candidate: string) => Promise<boolean> = canRunPython,
+): Promise<string> {
+  const chosen = configuredPath?.trim();
+  if (!chosen) return resolvePython(candidates, probe);
+  if (!isAbsolute(chosen)) {
+    throw new Error('FunASR Python path must be absolute');
+  }
+  let fileExists = false;
+  try {
+    fileExists = existsSync(chosen) && statSync(chosen).isFile();
+  } catch {
+    // A path with broken symlinks or unreadable components is equally unusable.
+  }
+  if (!fileExists) {
+    throw new Error('FunASR Python interpreter does not exist');
+  }
+  if (!(await probe(chosen))) {
+    throw new Error('FunASR Python cannot run --version');
+  }
+  return chosen;
 }
 
 export type LocalSidecarModel = 'nano' | 'paraformer' | 'moss';
@@ -93,12 +121,31 @@ export function sidecarModelArg(model: string | undefined): LocalSidecarModel {
 export function sidecarEnvironment(
   modelArg: LocalSidecarModel,
   base: NodeJS.ProcessEnv = process.env,
+  modelscopeCache?: string,
 ): NodeJS.ProcessEnv {
-  if (modelArg !== 'moss') return base;
+  // Packaged scripts live in signed Resources/tools. A .pyc written there
+  // after launch invalidates the macOS code signature's sealed resources.
+  const env: NodeJS.ProcessEnv = { ...base, PYTHONDONTWRITEBYTECODE: '1' };
+  if (modelArg !== 'moss') {
+    if (modelscopeCache && !env.MODELSCOPE_CACHE) env.MODELSCOPE_CACHE = modelscopeCache;
+    return env;
+  }
   // hf-xet stalled on the reviewed Windows/TUN setup before writing any
   // weight bytes; regular Hub HTTP downloaded the same pinned snapshot
   // immediately and supports the normal cache/resume path.
-  return { ...base, HF_HUB_DISABLE_XET: base.HF_HUB_DISABLE_XET || '1' };
+  return { ...env, HF_HUB_DISABLE_XET: env.HF_HUB_DISABLE_XET || '1' };
+}
+
+export function sidecarLaunchArgs(
+  modelArg: LocalSidecarModel,
+  script: string,
+  port: number,
+  mossDevice = process.env.MC_MOSS_DEVICE || 'auto',
+): string[] {
+  // -B also prevents bytecode writes if the inherited environment changes.
+  return modelArg === 'moss'
+    ? ['-B', script, '--port', String(port), '--device', mossDevice]
+    : ['-B', script, '--port', String(port), '--model', modelArg, '--device', 'auto'];
 }
 
 export type SidecarStopPlan =
@@ -140,14 +187,24 @@ export class FunasrSidecar {
   private proc: ChildProcess | null = null;
   private starting: Promise<void> | null = null;
   private modelArg: LocalSidecarModel | null = null;
+  private configuredPythonPath: string | null = null;
 
   /** make sure something serves the port; spawn the python sidecar if needed */
-  async ensureRunning(port: number, appRoot: string, model?: string): Promise<void> {
+  async ensureRunning(
+    port: number,
+    appRoot: string,
+    model?: string,
+    pythonPath?: string,
+    modelscopeCache?: string,
+  ): Promise<void> {
     const requestedModel = sidecarModelArg(model);
-    if (this.proc && this.modelArg !== requestedModel) await this.stop();
+    const requestedPath = requestedModel === 'moss' ? null : pythonPath?.trim() || null;
+    if (this.proc && (this.modelArg !== requestedModel || this.configuredPythonPath !== requestedPath)) {
+      await this.stop();
+    }
     if (await portOpen(port)) return; // manual instance or an earlier spawn
     if (!this.starting) {
-      this.starting = this.spawnAndWait(port, appRoot, requestedModel).finally(() => {
+      this.starting = this.spawnAndWait(port, appRoot, requestedModel, requestedPath, modelscopeCache).finally(() => {
         this.starting = null;
       });
     }
@@ -158,11 +215,13 @@ export class FunasrSidecar {
     port: number,
     appRoot: string,
     modelArg: LocalSidecarModel,
+    configuredPythonPath: string | null,
+    modelscopeCache?: string,
   ): Promise<void> {
     const isMoss = modelArg === 'moss';
-    const python = await resolvePython(
-      isMoss ? mossPythonCandidates(appRoot) : pythonCandidates(appRoot),
-    );
+    const python = isMoss
+      ? await resolvePython(mossPythonCandidates(appRoot))
+      : await resolveConfiguredPython(configuredPythonPath ?? undefined, pythonCandidates(appRoot));
     const script = join(appRoot, 'tools', isMoss ? 'moss_asr_server.py' : 'funasr_stream_server.py');
     if (!existsSync(script)) {
       throw new Error(`sidecar script not found: ${script}`);
@@ -173,18 +232,17 @@ export class FunasrSidecar {
     return new Promise((resolve, reject) => {
       const proc = spawn(
         python,
-        isMoss
-          ? [script, '--port', String(port), '--device', process.env.MC_MOSS_DEVICE || 'auto']
-          : [script, '--port', String(port), '--model', modelArg, '--device', 'auto'],
+        sidecarLaunchArgs(modelArg, script, port),
         {
           cwd: appRoot,
           windowsHide: true,
           detached: process.platform !== 'win32',
-          env: sidecarEnvironment(modelArg),
+          env: sidecarEnvironment(modelArg, process.env, modelscopeCache),
         },
       );
       this.proc = proc;
       this.modelArg = modelArg;
+      this.configuredPythonPath = configuredPythonPath;
       let settled = false;
       const settle = (fn: () => void) => {
         if (settled) return;
@@ -212,6 +270,7 @@ export class FunasrSidecar {
       proc.on('exit', (code) => {
         this.proc = null;
         this.modelArg = null;
+        this.configuredPythonPath = null;
         const envName = isMoss ? 'moss-asr' : 'funasr';
         settle(() =>
           reject(new Error(`the local ASR engine exited (code ${code}); check the conda env "${envName}"`)),
@@ -226,6 +285,7 @@ export class FunasrSidecar {
     const p = this.proc;
     this.proc = null;
     this.modelArg = null;
+    this.configuredPythonPath = null;
     if (!p?.pid) return;
     let didExit = false;
     const exited = new Promise<void>((resolve) =>
