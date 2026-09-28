@@ -44,6 +44,9 @@ export function AnswerSession({
   onShotAsk,
   screenshotMode,
   onScreenshotModeChange,
+  codexModel,
+  codexEffort,
+  onConfigureCodex,
 }: {
   sessions: StoredSession[];
   currentId: string;
@@ -70,6 +73,10 @@ export function AnswerSession({
   onShotAsk: (question: string, imageDataUrl?: string) => void;
   screenshotMode: ScreenshotMode;
   onScreenshotModeChange: (mode: ScreenshotMode) => void;
+  /** Present only when Codex CLI generates answers. */
+  codexModel?: string;
+  codexEffort?: string;
+  onConfigureCodex?: () => void;
 }) {
   const t = useT();
   const boxRef = useRef<HTMLDivElement>(null);
@@ -220,6 +227,13 @@ export function AnswerSession({
         )}
       </div>
       {!answersReady && <div className="kb-notice">{answersHint}</div>}
+      {onConfigureCodex && <div className="answer-model-row">
+        <span>{t.answer.codexModelLabel}</span>
+        <button type="button" className="btn btn-sm answer-model-button"
+          onClick={onConfigureCodex} title={t.answer.changeCodexModel}>
+          {codexModel || t.answer.codexDefaultModel}{codexEffort ? ` · ${codexEffort}` : ''} ▾
+        </button>
+      </div>}
       {visionReady && (
         <div className="screenshot-mode-row">
           <span>{t.answer.screenshotModeLabel}</span>

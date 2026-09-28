@@ -47,6 +47,9 @@ const zh = {
     vision: '多模态',
     textOnly: '纯文本',
     modelTitle: '回答用的模型：纯文本大模型（快） ⇄ 多模态模型（可截图问答）',
+    codexVisionOn: '截图开',
+    codexVisionOff: '截图关',
+    codexVisionTitle: '开启或关闭截图问答；点击回答区的 Codex 模型按钮选择 GPT 模型',
     answerLang: (en: boolean) => `答:${en ? 'EN' : '中'}`,
     answerLangTitle: 'AI 回答语言：中/英切换',
     micOn: '🎤录音中',
@@ -122,6 +125,9 @@ const zh = {
     screenshotModeTitle: '只影响自动截图、框选截图和截图快捷键；文字提问不变',
     screenshotGeneral: '普通',
     screenshotCodingTest: 'Coding Test',
+    codexModelLabel: 'Codex 模型',
+    codexDefaultModel: 'CLI 默认',
+    changeCodexModel: '选择 GPT 模型与推理强度',
   },
   status: {
     state: {
@@ -507,6 +513,9 @@ const en: Dict = {
     vision: 'Vision',
     textOnly: 'Text',
     modelTitle: 'Answering model: text-only LLM (fast) ⇄ multimodal model (screenshot Q&A)',
+    codexVisionOn: 'Shots on',
+    codexVisionOff: 'Shots off',
+    codexVisionTitle: 'Toggle screenshot questions; use the Codex model button in the answer panel to choose a GPT model',
     answerLang: (en_: boolean) => `A:${en_ ? 'EN' : 'ZH'}`,
     answerLangTitle: 'AI answer language: Chinese/English',
     micOn: '🎤Rec',
@@ -585,6 +594,9 @@ const en: Dict = {
     screenshotModeTitle: 'Applies to full-screen, region, and hotkey screenshots only; typed questions stay unchanged',
     screenshotGeneral: 'General',
     screenshotCodingTest: 'Coding Test',
+    codexModelLabel: 'Codex model',
+    codexDefaultModel: 'CLI default',
+    changeCodexModel: 'Choose a GPT model and reasoning effort',
   },
   status: {
     state: {

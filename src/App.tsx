@@ -78,6 +78,7 @@ export function App() {
   const [asr, setAsr] = useState<AsrUiState>({ phase: 'loading', workerState: 'loading' });
   const [capturing, setCapturing] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  const [focusCodexModel, setFocusCodexModel] = useState(false);
   const [showHealth, setShowHealth] = useState(false);
   const [showDiagnostics, setShowDiagnostics] = useState(false);
   const [showHelp, setShowHelp] = useState(false);
@@ -785,9 +786,11 @@ export function App() {
           <button
             className={settings?.llm.answerWithVision ? 'btn btn-on' : 'btn'}
             onClick={() => void toggleAnswerModel()}
-            title={t.titlebar.modelTitle}
+            title={settings?.llm.backend === 'codex-cli' ? t.titlebar.codexVisionTitle : t.titlebar.modelTitle}
           >
-            {settings?.llm.answerWithVision ? t.titlebar.vision : t.titlebar.textOnly}
+            {settings?.llm.backend === 'codex-cli'
+              ? settings.llm.answerWithVision ? t.titlebar.codexVisionOn : t.titlebar.codexVisionOff
+              : settings?.llm.answerWithVision ? t.titlebar.vision : t.titlebar.textOnly}
           </button>
           <button className="btn" onClick={() => void toggleAnswerLang()} title={t.titlebar.answerLangTitle}>
             {t.titlebar.answerLang(settings?.llm.answerLang === 'english')}
@@ -888,23 +891,28 @@ export function App() {
       {showSettings && settings && (
         <SettingsPanel
           settings={settings}
+          focusCodexModel={focusCodexModel}
           onSaved={(s) => {
             setSettings(s);
             answerLangRef.current = s.llm.answerLang;
             setShowSettings(false);
+            setFocusCodexModel(false);
           }}
-          onClose={() => setShowSettings(false)}
+          onClose={() => { setShowSettings(false); setFocusCodexModel(false); }}
           onSettingsRefreshed={setSettings}
           onRerunWizard={() => {
             setShowSettings(false);
+            setFocusCodexModel(false);
             void window.mc.rerunOnboarding();
           }}
           onOpenDiagnostics={() => {
             setShowSettings(false);
+            setFocusCodexModel(false);
             setShowDiagnostics(true);
           }}
           onOpenHelp={() => {
             setShowSettings(false);
+            setFocusCodexModel(false);
             setShowHelp(true);
           }}
         />
@@ -944,6 +952,11 @@ export function App() {
           onShotAsk={askShot}
           screenshotMode={settings?.ui.screenshotMode ?? 'general'}
           onScreenshotModeChange={(mode) => void updateScreenshotMode(mode)}
+          codexModel={settings?.llm.backend === 'codex-cli' ? settings.llm.codex?.model : undefined}
+          codexEffort={settings?.llm.backend === 'codex-cli' ? settings.llm.codex?.reasoningEffort : undefined}
+          onConfigureCodex={settings?.llm.backend === 'codex-cli'
+            ? () => { setFocusCodexModel(true); setShowSettings(true); }
+            : undefined}
         />
       </div>
 

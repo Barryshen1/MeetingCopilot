@@ -62,7 +62,7 @@ export function defaultSettings(platform: string = process.platform): SettingsFi
     },
     llm: {
       backend: 'openai-compatible',
-      codex: {},
+      codex: { model: 'gpt-6-sol', reasoningEffort: 'low' },
       baseUrl: 'https://api.deepseek.com/v1',
       // 'deepseek-chat' = v4-flash in NON-thinking mode (first token ~0.4 s).
       // Plain 'deepseek-v4-flash' streams a long reasoning_content chain first
@@ -115,7 +115,9 @@ function mergeWithDefaults(raw: Partial<SettingsFile>, defaults: SettingsFile): 
   return {
     version: 2,
     onboarding: { ...defaults.onboarding, ...raw.onboarding, schemaVersion: 1 },
-    llm: { ...defaults.llm, ...raw.llm, codex: { ...defaults.llm.codex, ...raw.llm?.codex } },
+    // A saved profile predates any new-profile Codex preference unless it
+    // explicitly carries that preference. Preserve its CLI-default behavior.
+    llm: { ...defaults.llm, ...raw.llm, codex: { ...raw.llm?.codex } },
     vision: { ...defaults.vision, ...raw.vision },
     asr: {
       ...defaults.asr,

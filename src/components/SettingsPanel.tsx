@@ -124,6 +124,7 @@ export function SettingsPanel({
   onOpenDiagnostics,
   onOpenHelp,
   onSettingsRefreshed,
+  focusCodexModel = false,
 }: {
   settings: PublicSettings;
   onSaved: (s: PublicSettings) => void;
@@ -135,6 +136,8 @@ export function SettingsPanel({
   /** in-app help center (also reachable from the tray) */
   onOpenHelp?: () => void;
   onSettingsRefreshed?: (settings: PublicSettings) => void;
+  /** Opened from the answer panel's model shortcut. */
+  focusCodexModel?: boolean;
 }) {
   const t = useT();
   const [llmBackend, setLlmBackend] = useState(settings.llm.backend ?? 'openai-compatible');
@@ -193,6 +196,16 @@ export function SettingsPanel({
       .then(setDevices)
       .catch(() => setDevices([]));
   }, []);
+
+  useEffect(() => {
+    if (!focusCodexModel || llmBackend !== 'codex-cli') return;
+    const frame = requestAnimationFrame(() => {
+      const picker = document.getElementById('codex-model');
+      picker?.scrollIntoView({ block: 'center' });
+      picker?.focus({ preventScroll: true });
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [focusCodexModel, llmBackend]);
 
   /**
    * One real provider round-trip on an explicit click. A key typed above wins

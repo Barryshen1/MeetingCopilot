@@ -62,10 +62,23 @@ describe('SettingsStore', () => {
 
   it('preserves verification for equivalent CLI defaults and unused API settings', () => {
     const store = new SettingsStore(file, fakeCipher);
-    store.applyPatch({ llm: { backend: 'codex-cli' } });
+    store.applyPatch({ llm: { backend: 'codex-cli', codex: { binaryPath: '', model: '', reasoningEffort: undefined } } });
     store.recordVerification('llm', { lastTestOk: true });
     store.applyPatch({ llm: { codex: { binaryPath: '', model: '', reasoningEffort: undefined }, baseUrl: 'https://unused.test', apiKey: 'unused-key' }, ui: { theme: 'light' } });
     expect(store.getPublic().llm.verification?.lastTestOk).toBe(true);
+  });
+
+  it('gives new profiles gpt-6-sol at low effort without changing saved CLI defaults', () => {
+    const fresh = new SettingsStore(file, fakeCipher);
+    expect(fresh.getPublic().llm.codex).toEqual({ model: 'gpt-6-sol', reasoningEffort: 'low' });
+
+    writeFileSync(file, JSON.stringify({ ...defaultSettings(), llm: { ...defaultSettings().llm, codex: {} } }));
+    const existing = new SettingsStore(file, fakeCipher);
+    expect(existing.getPublic().llm.codex).toEqual({});
+
+    existing.applyPatch({ llm: { backend: 'codex-cli', codex: { model: 'gpt-6-sol', reasoningEffort: 'low' } } });
+    const reloaded = new SettingsStore(file, fakeCipher);
+    expect(reloaded.getPublic().llm.codex).toEqual({ model: 'gpt-6-sol', reasoningEffort: 'low' });
   });
 
   it('boots with defaults when no file exists', () => {

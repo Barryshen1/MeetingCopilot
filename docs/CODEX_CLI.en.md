@@ -25,7 +25,7 @@ Complete the sign-in flow in your browser. Authentication stays with Codex; Meet
 1. On first launch, choose **Codex CLI, advanced setup and local modes** on the setup plan page. This opens the main window without requiring API keys.
 2. Open **Settings** and change **AI answer backend** to **Codex CLI**.
 3. Check **Installed** and **Signed in**. **Refresh status** reads installation, account, and available model information; it does not generate a response.
-4. Keep **Use the Codex CLI default model**, pick a model returned by your CLI, or enter a custom model ID. Choose a reasoning effort supported by that model, or leave the CLI default.
+4. The answer panel shows the active **Codex model**. Click its name to jump to the model picker in Settings. Pick a model returned by your CLI, enter a custom model ID, or use the CLI default. Choose a supported reasoning effort or leave the CLI default. New profiles start with `gpt-6-sol` and `low`.
 5. Click **Save**, reopen Settings, and click **Test connection**. This sends a small generation request and uses your account allowance. Only a successful generation marks AI answers as connected.
 
 You can test a draft before saving it. That result applies to the draft; save and test again to record verification in Service status. Changing backend, model, reasoning effort, or executable clears the previous saved verification. Switching back to the API backend retains its endpoint, model, and stored key.
@@ -42,7 +42,7 @@ Finder launches do not inherit your terminal's full environment. MeetingCopilot 
 
 ## 3. Ask questions and use screenshots
 
-Typed questions work independently of transcription. For screenshot questions, enable **Vision** in the title bar, then use the screenshot button or configured screenshot hotkey. Codex receives the selected image and question; no separate vision API key is required. Choose a Codex model that accepts images. The text connection test does not establish image support.
+Typed questions work independently of transcription. In Codex mode, the title bar's **Shots on/off** button controls screenshot questions; it does not change the GPT model. Enable it, then use the screenshot button or configured screenshot hotkey. Codex receives the selected image and question; no separate vision API key is required. Choose a Codex model that accepts images. The text connection test does not establish image support.
 
 Answers stream as they arrive. **Stop** cancels the active answer. Increasing reasoning effort can increase response time.
 
