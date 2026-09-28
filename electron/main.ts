@@ -211,6 +211,11 @@ function bootstrap(): void {
   };
 
   function cipher(): SecretCipher {
+    // On macOS, even the availability probe can ask for Keychain access and
+    // block startup after signing changes. Codex-only use needs no app-owned
+    // secret. Defer Keychain access until an API key is encrypted/decrypted;
+    // those operations still require OS encryption and fail if unavailable.
+    if (process.platform === 'darwin') return safeCipher;
     if (safeCipher.available()) return safeCipher;
     console.warn('[security] OS secret storage unavailable; API keys will only be obfuscated');
     return plainCipher;
