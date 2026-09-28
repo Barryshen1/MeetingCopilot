@@ -89,13 +89,13 @@ You can reopen the wizard any time from *⚙ Settings → Run the setup wizard a
 - ⚡ **Four switchable ASR backend families** — local sidecars (FunASR by default; experimental MOSS-Transcribe 0.9B), local Whisper turbo (offline fallback, DirectML GPU), Alibaba Cloud `fun-asr-realtime`, and MiMo per-segment. FunASR provides live partials; MOSS emits a finalized utterance after a pause.
 - 🌍 **Bilingual (zh / en) out of the box** — ASR detects Chinese↔English switches mid-meeting. Set answer language to `A:Auto` to follow each question, or choose `A:ZH` / `A:EN` for a fixed language.
 - 🌐 **Fully English or Chinese interface** — every label, tooltip, dialog and status message is available in both languages. Switch under *Settings → Appearance → UI Language*; first launch follows your OS language automatically. UI language and answer language are independent, so you can run an English UI while reading Chinese answers, or vice versa.
-- 🧠 **First-person teleprompter answers** — bring your own key, any OpenAI-compatible LLM (DeepSeek recommended). Answers are written to be read aloud verbatim: conclusion first, then 2-3 short points; STAR for behavioral questions; idea → key points → complexity for technical ones. Never invents experience beyond your resume.
-- 📄 **Per-session resume + JD slots** — import `.md/.txt/.docx/.pdf`; parsing is local and deterministic, nothing gets uploaded. Question-type detection (behavioral / technical / smalltalk) appends a zero-latency answering hint.
+- 🧠 **First-person teleprompter answers** — bring your own key, any OpenAI-compatible LLM (DeepSeek recommended). Answers are written to be read aloud verbatim: conclusion first, then 2-3 short points; STAR for behavioral questions; idea → key points → complexity for technical ones. Never invents experience beyond the material you supplied.
+- 📄 **Per-session materials** — keep the resume and JD slots, and add other reference files such as project notes, a portfolio, interview preparation, data, or source code. Add multiple files in one dialog and remove each one separately. The app extracts text locally and stores it with that session; bounded excerpts go to the configured answer provider for answers and API cache prewarming. Supported formats are listed below. Question-type detection (behavioral / technical / smalltalk) appends a zero-latency answering hint.
 - 🔁 **Rolling interview memo** — a structured summary (questions asked / facts you claimed / interviewer focus) updates asynchronously after each answer, so a 60-minute interview stays self-consistent while per-request tokens stay flat.
 - 🚀 **Prefix-cache prewarm** — pressing ▶ fires a 1-token request that pre-builds the LLM provider's KV prefix cache, so the first real answer prefills from cache (verified via DeepSeek `prompt_cache_hit_tokens`); kept warm automatically during capture.
-- 🖼️ **Screenshot Q&A** — click 📷 or press the screenshot hotkey to capture the display under the pointer once and ask Codex or your configured vision model. Use **Region** to drag-select a smaller area. In the screenshot mode selector, choose **Coding Test** for a complete Python 3 solution with an approach and time/space complexity; typed questions stay unchanged. The choice is saved for the next launch.
+- 🖼️ **Screenshot Q&A** — click 📷 or press the screenshot hotkey to capture the display under the pointer once and ask Codex or your configured vision model. Use **Region** to drag-select a smaller area. General screenshots can use the current session's materials. In the screenshot mode selector, choose **Coding Test** for a complete Python 3 solution with an approach and time/space complexity; that screenshot mode uses only the screenshot and any typed question, without session materials. Typed questions stay unchanged. The choice is saved for the next launch.
 - 🥷 **Capture protection** — content protection plus a global hide/show hotkey. Windows excludes the window from supported captures; macOS cannot guarantee invisibility against modern ScreenCaptureKit clients.
-- 🩺 **Connection tests, service status and local diagnostics** — one click tells you whether a key, the network or the account is at fault (14 normalized error codes), and the diagnostics report is built locally with no keys, transcripts or resume text in it.
+- 🩺 **Connection tests, service status and local diagnostics** — one click tells you whether a key, the network or the account is at fault (14 normalized error codes), and the diagnostics report is built locally with no keys, transcripts or imported document text in it.
 - 🔔 **System tray** — show/hide, start/stop transcription, new session, settings, service status, help and quit, all without a taskbar button. Optional start-at-login, off by default.
 - 🌗 **Dark / light / follow-system themes**, 3-step answer font size, latency HUD, inline translation, multi-session with fully isolated transcript + chat + material per meeting.
 
@@ -108,6 +108,12 @@ You can reopen the wizard any time from *⚙ Settings → Run the setup wizard a
 ![Switching the UI language from Chinese to English](docs/language-switch.gif)
 
 *Settings → Appearance → UI Language: the whole interface — title bar, panels, tooltips, dialogs — flips instantly. The screenshots above show the English UI; the Chinese one is in [README.zh-CN.md](README.zh-CN.md).*
+
+### Add reference files to a session
+
+In the answer pane, use the **Resume** and **JD** buttons for those documents, and **Add files** for any other material you want the AI to consult. The **Add files** dialog lets you select multiple files at once. You can remove each file without affecting the others. Supported formats are documents (`.md`, `.markdown`, `.txt`, `.docx`, `.pdf`), data and logs (`.csv`, `.tsv`, `.json`, `.jsonl`, `.log`), and source code (`.py`, `.js`, `.jsx`, `.ts`, `.tsx`, `.java`, `.cpp`, `.c`, `.h`, `.go`, `.rs`, `.sql`).
+
+The materials stay with that session when you switch conversations or restart the app. You can add up to 20 extra files per session; each file may be up to 20 MB and 200,000 extracted characters. Text questions, transcribed questions, and general screenshot questions can use them; **Coding Test** screenshots stay focused on the visible programming problem. The original files are parsed locally, and the extracted text is saved in the local session data. A bounded amount of that text is sent to your configured answer provider when you ask a question or when the API model's prefix cache is warmed (such as when you start capture or import files).
 
 ### Bilingual in one session
 
@@ -186,7 +192,7 @@ Place [`onnx-community/whisper-large-v3-turbo-ONNX`](https://huggingface.co/onnx
 - API keys are encrypted at rest with Electron `safeStorage` (Windows DPAPI / macOS Keychain) and never reach the renderer process.
 - All MeetingCopilot data (settings / sessions / materials) lives under Electron's per-user `userData` directory (`%APPDATA%/MeetingCopilot/` on Windows and `~/Library/Application Support/MeetingCopilot/` on macOS). MeetingCopilot has no telemetry, account service or hosted backend.
 - With the local ASR backends, audio never leaves your machine. Transcripts, selected materials and requested screenshots go to your configured answer provider, including Codex when selected. Codex manages its own credentials and service connection; see [Codex CLI setup](docs/CODEX_CLI.en.md).
-- The diagnostics report is built locally and contains no keys, transcripts or resume text — it is safe to paste into a public issue.
+- The diagnostics report is built locally and contains no keys, transcripts or imported document text — it is safe to paste into a public issue.
 
 ## Development
 

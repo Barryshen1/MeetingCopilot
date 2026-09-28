@@ -40,7 +40,7 @@ import { isRendererCommand, type TrayCommand, type TrayMenuState } from '../shar
 import { KnowledgeStore } from './knowledge';
 import { SessionStore } from './sessions';
 import { captureDisplayScreenshot, ScreenCaptureError, withCaptureWindowHidden } from './screenshot';
-import { DOC_EXTENSIONS, extractDocText } from './docparse';
+import { DOC_EXTENSIONS, DocParseError, extractDocBatch, extractDocText } from './docparse';
 import { basename } from 'path';
 import { chatOnce, type ChatResult } from './llm/adapter';
 import { CodexClient } from './llm/codex';
@@ -57,7 +57,7 @@ import {
   buildVisionMessages,
   clampMemo,
 } from './llm/prompts';
-import type { AppInfo, PublicSettings, ScreenshotMode, UiLang } from '../shared/protocol';
+import type { AppInfo, KbSlot, PickedDocument, PublicSettings, ScreenshotMode, SessionAttachment, UiLang } from '../shared/protocol';
 import {
   IPC,
   type AsrEvent,
@@ -590,10 +590,10 @@ function bootstrap(): void {
     let keepWarmTimer: NodeJS.Timeout | null = null;
 
     /** same material fallback as llmAsk — prewarm MUST match real requests byte-for-byte */
-    function stablePrefixFor(resume?: string, jd?: string): string {
-      const hasMaterial = !!(resume || jd);
+    function stablePrefixFor(resume?: string, jd?: string, attachments?: SessionAttachment[]): string {
+      const hasMaterial = !!(resume || jd || attachments?.length);
       const effResume = resume || (hasMaterial ? '' : knowledge.text);
-      return buildStablePrefix(effResume, jd ?? '', settings.data.llm.answerLang);
+      return buildStablePrefix(effResume, jd ?? '', settings.data.llm.answerLang, attachments);
     }
 
     async function doPrewarm(prefix: string, reason: string): Promise<void> {
@@ -618,8 +618,8 @@ function bootstrap(): void {
 
     ipcMain.on(
       IPC.llmPrewarm,
-      (_e, payload: { resume?: string; jd?: string; immediate?: boolean } = {}) => {
-        const prefix = stablePrefixFor(payload.resume, payload.jd);
+      (_e, payload: { resume?: string; jd?: string; attachments?: SessionAttachment[]; immediate?: boolean } = {}) => {
+        const prefix = stablePrefixFor(payload.resume, payload.jd, payload.attachments);
         const dirty = prefix !== lastPrefix;
         const cold = Date.now() - lastPrefixActivity >= PREWARM_IDLE_MS;
         if (!dirty && !cold) return;
@@ -900,22 +900,56 @@ function bootstrap(): void {
       knowledge.clear();
       return { chars: knowledge.chars };
     });
-    ipcMain.handle(IPC.knowledgePick, async (_e, slot: 'resume' | 'jd' = 'resume') => {
+    ipcMain.handle(IPC.knowledgePick, async (_e, slot: KbSlot = 'resume') => {
       nativeFileDialogsOpen++;
-      const r = await dialog.showOpenDialog({
-        title: slot === 'jd' ? T().pickJdTitle : T().pickResumeTitle,
-        filters: [{ name: T().docFilter, extensions: [...DOC_EXTENSIONS] }],
-        properties: ['openFile'],
-      }).finally(() => { nativeFileDialogsOpen--; });
-      if (r.canceled || !r.filePaths[0]) return null;
       try {
-        // deterministic parse (mammoth / pdf-parse) — no LLM in the loop;
-        // '' for scanned PDFs, the renderer warns the user
-        const text = await extractDocText(r.filePaths[0]);
-        return { name: basename(r.filePaths[0]), text, chars: text.length };
-      } catch (e) {
-        console.error('[knowledge] pick failed:', (e as Error).message);
-        return null;
+        const r = await dialog.showOpenDialog({
+          title: slot === 'jd' ? T().pickJdTitle : T().pickResumeTitle,
+          filters: [{ name: T().docFilter, extensions: [...DOC_EXTENSIONS] }],
+          properties: ['openFile'],
+        });
+        if (r.canceled || !r.filePaths[0]) return null;
+        try {
+          // deterministic parse (mammoth / pdf-parse) — no LLM in the loop;
+          // '' for scanned PDFs, the renderer warns the user
+          const text = await extractDocText(r.filePaths[0]);
+          return { name: basename(r.filePaths[0]), text, chars: text.length };
+        } catch (e) {
+          const message = e instanceof DocParseError
+            ? e.code === 'TOO_LARGE' ? T().docTooLarge
+              : e.code === 'TEXT_TOO_LONG' ? T().docTextTooLong
+                : T().docUnsupported
+            : T().docReadFailed;
+          console.warn('[knowledge] pick failed:', e instanceof DocParseError ? e.code : 'READ_FAILED');
+          await dialog.showMessageBox({ title: T().docFilter, message, type: 'warning' });
+          return null;
+        }
+      } finally {
+        nativeFileDialogsOpen--;
+      }
+    });
+    ipcMain.handle(IPC.knowledgePickFiles, async (): Promise<PickedDocument[] | null> => {
+      nativeFileDialogsOpen++;
+      try {
+        const r = await dialog.showOpenDialog({
+          title: T().pickAttachmentTitle,
+          filters: [{ name: T().docFilter, extensions: [...DOC_EXTENSIONS] }],
+          properties: ['openFile', 'multiSelections'],
+        });
+        if (r.canceled || !r.filePaths.length) return null;
+
+        // Bound a single import operation; users can add further batches later.
+        const { files, skipped } = await extractDocBatch(r.filePaths);
+        if (skipped) {
+          await dialog.showMessageBox({
+            title: T().docFilter,
+            message: T().docFilesSkipped(skipped),
+            type: 'warning',
+          });
+        }
+        return files;
+      } finally {
+        nativeFileDialogsOpen--;
       }
     });
     ipcMain.handle(IPC.sessionsLoad, () => sessionStore.load());
@@ -1032,7 +1066,7 @@ function bootstrap(): void {
       const isTranslate = payload.mode === 'translate';
       // session dual-slot material first; the global default KB only fills in
       // when the session has nothing (translate stays a clean pass-through)
-      const hasMaterial = !!(payload.resume || payload.jd || payload.background);
+      const hasMaterial = !!(payload.resume || payload.jd || payload.attachments?.length || payload.background);
       const messages = buildAnswerMessages({
         mode: payload.mode,
         question: payload.question,
@@ -1042,6 +1076,7 @@ function bootstrap(): void {
         history: payload.history,
         resume: isTranslate ? undefined : payload.resume,
         jd: isTranslate ? undefined : payload.jd,
+        attachments: isTranslate ? undefined : payload.attachments,
         memo: isTranslate ? undefined : payload.memo,
         background: isTranslate ? undefined : payload.background || (hasMaterial ? undefined : knowledge.text),
       });
@@ -1058,7 +1093,7 @@ function bootstrap(): void {
 
       // a real answer request refreshes the provider-side prefix cache itself
       if (!isTranslate && !useVision && payload.mode !== 'free') {
-        lastPrefix = stablePrefixFor(payload.resume || payload.background, payload.jd);
+        lastPrefix = stablePrefixFor(payload.resume || payload.background, payload.jd, payload.attachments);
         lastPrefixActivity = Date.now();
       }
 
@@ -1158,7 +1193,7 @@ function bootstrap(): void {
     // -> vision model. Temporarily hide the assistant during full capture. ----
     ipcMain.on(
       IPC.shotAsk,
-      (_e, payload: { requestId: string; question: string; background?: string; imageDataUrl?: string; screenshotMode?: ScreenshotMode }) => {
+      (_e, payload: { requestId: string; question: string; background?: string; attachments?: SessionAttachment[]; imageDataUrl?: string; screenshotMode?: ScreenshotMode }) => {
       const sendEv = (ev: LlmEvent) => win?.webContents.send(IPC.llmEvent, ev);
       const vision = settings.data.vision;
       const apiKey = settings.getVisionApiKey();
@@ -1179,9 +1214,12 @@ function bootstrap(): void {
         : captureCurrentScreen(ac.signal);
       imgP
         .then((dataUrl) => {
-          const background = screenshotMode === 'coding-test' ? undefined : payload.background || knowledge.text;
+          const attachments = screenshotMode === 'coding-test' ? undefined : payload.attachments;
+          const background = screenshotMode === 'coding-test'
+            ? undefined
+            : payload.background || (attachments?.length ? undefined : knowledge.text);
           const messages = buildVisionMessages(
-            payload.question, dataUrl, background, screenshotMode, settings.data.llm.answerLang,
+            payload.question, dataUrl, background, screenshotMode, settings.data.llm.answerLang, attachments,
           );
           if (textLlm.usesCodex) {
             return textLlm.stream(messages, {

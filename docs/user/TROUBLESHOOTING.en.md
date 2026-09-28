@@ -92,6 +92,6 @@ If another app already owns that hotkey, registration fails silently — the tra
 
 ## Still stuck
 
-1. Settings → Advanced → "Diagnostics" → "Copy diagnostics". The report is built locally and contains **no API keys, resume/JD text or transcripts**, so it is safe to paste into a public issue.
+1. Settings → Advanced → "Diagnostics" → "Copy diagnostics". The report is built locally and contains **no API keys, imported document text or transcripts**, so it is safe to paste into a public issue.
 2. Open an issue at [GitHub Issues](https://github.com/JWM0203/MeetingCopilot/issues) with the report and: what you did, what you expected, what happened instead.
 3. If a provider is involved, include the error code and request id from "Test connection".

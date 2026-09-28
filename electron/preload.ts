@@ -9,10 +9,12 @@ import {
   type LlmEvent,
   type OnboardingProgressPatch,
   type OnboardingState,
+  type PickedDocument,
   type ProviderTestRequest,
   type ProviderTestResult,
   type PublicSettings,
   type ScreenshotMode,
+  type SessionAttachment,
   type SessionsFile,
   type SettingsPatch,
   type TrayCommandPayload,
@@ -32,8 +34,10 @@ export interface McApi {
   rerunOnboarding(): Promise<boolean>;
   importKnowledge(): Promise<{ chars: number }>;
   clearKnowledge(): Promise<{ chars: number }>;
-  /** pick a resume/JD document for the current session (.md/.txt/.docx/.pdf) */
-  pickKnowledge(slot: KbSlot): Promise<{ name: string; text: string; chars: number } | null>;
+  /** pick a resume or JD for the current session */
+  pickKnowledge(slot: KbSlot): Promise<PickedDocument | null>;
+  /** pick several additional reference files for the current session */
+  pickKnowledgeFiles(): Promise<PickedDocument[] | null>;
   loadSessions(): Promise<SessionsFile>;
   saveSessions(data: SessionsFile): void;
   setStealth(on: boolean): Promise<boolean>;
@@ -49,6 +53,7 @@ export interface McApi {
     requestId: string;
     question: string;
     background?: string;
+    attachments?: SessionAttachment[];
     imageDataUrl?: string;
     screenshotMode?: ScreenshotMode;
   }): void;
@@ -63,7 +68,7 @@ export interface McApi {
   llmCancel(requestId: string): void;
   /** P1-6: warm the DeepSeek prefix cache with the session's material;
    * immediate=true warms even when not capturing (▶ start / material import) */
-  prewarm(payload: { resume?: string; jd?: string; immediate?: boolean }): void;
+  prewarm(payload: { resume?: string; jd?: string; attachments?: SessionAttachment[]; immediate?: boolean }): void;
   /** P1-5: fold a finished Q&A into the rolling memo ('' = keep the old one) */
   memoUpdate(p: { memo: string; question: string; answer: string }): Promise<string>;
   onLlmEvent(cb: (ev: LlmEvent) => void): () => void;
@@ -102,6 +107,7 @@ const api: McApi = {
   importKnowledge: () => ipcRenderer.invoke(IPC.knowledgeImport),
   clearKnowledge: () => ipcRenderer.invoke(IPC.knowledgeClear),
   pickKnowledge: (slot) => ipcRenderer.invoke(IPC.knowledgePick, slot),
+  pickKnowledgeFiles: () => ipcRenderer.invoke(IPC.knowledgePickFiles),
   loadSessions: () => ipcRenderer.invoke(IPC.sessionsLoad),
   saveSessions: (data) => ipcRenderer.send(IPC.sessionsSave, data),
   setStealth: (on) => ipcRenderer.invoke(IPC.stealthSet, on),

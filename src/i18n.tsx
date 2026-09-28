@@ -32,6 +32,7 @@ const zh = {
     upgradeSkip: '暂时跳过',
     kbNoText: (name: string) =>
       `「${name}」没有可提取的文本（扫描版 PDF？请换文字版或 .md/.txt）`,
+    referenceFileLimit: '每个会话最多添加 20 个其他资料文件。请先移除不需要的文件。',
   },
   titlebar: {
     start: '▶ 开始',
@@ -107,10 +108,18 @@ const zh = {
       `岗位JD：${name}（${chars}字）点击更换（.md/.txt/.docx/.pdf）`,
     jdEmptyTitle: '导入岗位JD（.md/.txt/.docx/.pdf）',
     jdRemoveTitle: '移除岗位JD',
+    materialsLabel: '本会话资料',
+    addReference: '添加文件',
+    addReferenceTitle:
+      '添加参考文件（每个会话最多 20 个；单文件最多 20 MB / 20 万字符）。建议屏幕共享前添加：macOS 文件选择窗口可能出现在共享画面中。',
+    filePickerShareHint: '共享屏幕前添加；文件选择窗口可能被看到',
+    referenceFilesLabel: '其他资料文件',
+    referenceFileTitle: (name: string, chars: number) => `资料：${name}（${chars}字）`,
+    removeReferenceTitle: (name: string) => `移除资料 ${name}`,
     clear: '清空',
     clearTitle: '清空本会话对话',
     empty: '点转录里对方那句的「⚡答」让 AI 帮你回答；或在下方随便问。答案会在这里逐条累积。',
-    emptyKbHint: '\n\n提示：点上方「📄简历」「📋JD」导入资料（支持 docx/pdf），回答会更贴合你。',
+    emptyKbHint: '\n\n提示：点上方「📄简历」「📋JD」或「添加文件」添加资料，让回答参考你的文件。',
     stop: '停',
     copy: '复制',
     copyTitle: '复制',
@@ -217,7 +226,8 @@ const zh = {
           '第一步：在设置中选择 Codex CLI 并测试登录，或通过配置向导添加 AI 回答 API Key。语音转写需要另外配置 ASR。',
           '第二步：让电脑放一段有人说话的声音（视频、会议、播客都行），点标题栏的「▶ 开始」，左栏应当出现文字。',
           '第三步：在左栏任意一句上点「⚡答」，右栏就会生成可以直接照着念的回答；打开「持续答」则由 AI 自动接话。',
-          '想让回答贴合你的经历，先在右栏点「📄简历」「📋JD」导入资料（支持 .md/.txt/.docx/.pdf，全部本地解析）。',
+          '想让回答参考你的文件，在右栏点「📄简历」「📋JD」或「添加文件」添加资料（支持文档、CSV、JSON、代码等常见文本格式，全部本地解析）。',
+          '需要共享屏幕时，建议先添加文件；macOS 文件选择窗口可能出现在共享画面中。',
         ],
       },
       apiKey: {
@@ -463,7 +473,7 @@ const zh = {
     fontLarge: '大（19px）',
     otherSection: '其他',
     otherHint:
-      '麦克风开关与多模态切换在标题栏；简历/岗位JD 在右栏「📄简历」「📋JD」按会话导入（支持 docx/pdf）。',
+      '麦克风开关与多模态切换在标题栏；右栏可按会话添加简历、岗位 JD 和其他资料文件（支持文档、CSV、JSON、代码等格式）。',
     hotkeyToggle: '呼出/隐藏快捷键',
     hotkeyShot: '截图快捷键（单次截取鼠标所在显示器并提问）',
     autoLaunch: '开机自动启动',
@@ -500,6 +510,7 @@ const en: Dict = {
     upgradeSkip: 'Not now',
     kbNoText: (name: string) =>
       `"${name}" has no extractable text (scanned PDF? Use a text-based file or .md/.txt)`,
+    referenceFileLimit: 'Each session supports up to 20 extra reference files. Remove an unused file first.',
   },
   titlebar: {
     start: '▶ Start',
@@ -578,11 +589,19 @@ const en: Dict = {
       `Job description: ${name} (${chars} chars) — click to replace (.md/.txt/.docx/.pdf)`,
     jdEmptyTitle: 'Import the job description (.md/.txt/.docx/.pdf)',
     jdRemoveTitle: 'Remove job description',
+    materialsLabel: 'Materials for this session',
+    addReference: 'Add files',
+    addReferenceTitle:
+      'Add reference files (up to 20 per session; up to 20 MB / 200,000 characters each). Add them before screen sharing: the macOS file chooser may appear in the shared view.',
+    filePickerShareHint: 'Add before sharing; the file chooser may be visible',
+    referenceFilesLabel: 'Other reference files',
+    referenceFileTitle: (name: string, chars: number) => `Reference: ${name} (${chars} chars)`,
+    removeReferenceTitle: (name: string) => `Remove reference ${name}`,
     clear: 'Clear',
     clearTitle: 'Clear this session’s answers',
     empty: 'Hit “⚡Ans” on one of their transcript lines to have the AI answer it, or ask anything below. Answers accumulate here.',
     emptyKbHint:
-      '\n\nTip: import your resume / the JD with “📄Resume” “📋JD” above (docx/pdf supported) for answers tailored to you.',
+      '\n\nTip: use “📄Resume”, “📋JD”, or “Add files” above to add material for answers grounded in your files.',
     stop: 'Stop',
     copy: 'Copy',
     copyTitle: 'Copy',
@@ -691,7 +710,8 @@ const en: Dict = {
           'Step 1: choose Codex CLI in Settings and test your login, or add an AI answer API key through the setup wizard. Configure speech recognition (ASR) separately.',
           'Step 2: play something with speech in it (a video, a meeting, a podcast), click "▶ Start" in the title bar, and text should appear in the left pane.',
           'Step 3: click "⚡Ans" on any line to get an answer you can read aloud, or turn on "Auto" and let the AI reply to questions by itself.',
-          'For answers grounded in your own experience, import your resume and the job description with "📄Resume" / "📋JD" (.md/.txt/.docx/.pdf, parsed locally).',
+          'For answers grounded in your files, add a resume, job description, or another reference with "📄Resume", "📋JD", or "Add files" (documents, CSV, JSON, and common text/code formats are parsed locally).',
+          'If you plan to share your screen, add files first; the macOS file chooser may appear in the shared view.',
         ],
       },
       apiKey: {
@@ -937,7 +957,7 @@ const en: Dict = {
     fontLarge: 'Large (19px)',
     otherSection: 'Other',
     otherHint:
-      'The mic toggle and Text/Vision live in the title bar; import the resume/JD per session via “📄Resume” “📋JD” in the right pane (docx/pdf supported).',
+      'The mic toggle and Text/Vision live in the title bar; add a resume, JD, or other reference files per session in the right pane (documents, CSV, JSON, and code supported).',
     hotkeyToggle: 'Show/hide hotkey',
     hotkeyShot: 'Screenshot hotkey (capture the display under the pointer once and ask)',
     autoLaunch: 'Start at login',

@@ -62,7 +62,7 @@ One card per service, each with the provider tutorial inline:
 2. come back and paste it (there is a "Paste from clipboard" button);
 3. click "Save and test connection".
 
-Saving strips surrounding whitespace, wrapping quotes and a `Bearer ` prefix automatically. The connection test sends one **tiny** real request (1 token / ~1.4 s of audio / a 64×64 image), so the provider may charge a very small amount. Tests only ever run when you click — nothing is called in the background.
+Saving strips surrounding whitespace, wrapping quotes and a `Bearer ` prefix automatically. The connection test sends one **tiny** real request (1 token / ~1.4 s of audio / a 64×64 image), so the provider may charge a very small amount. Connection tests only run when you click. Starting capture or importing material may also send a request to warm the API answer model's cache.
 
 On failure the card shows an error code and the single next action worth taking, plus a "Save and retry later" escape hatch.
 
@@ -86,7 +86,7 @@ Review the summary and click "Enter MeetingCopilot". The wizard writes the whole
 2. Click **▶ Start** in the title bar; the Transcript pane on the left starts filling.
 3. Click **⚡Ans** on one of their lines and the right pane streams an answer written to be read aloud.
 4. Turn on **Auto** in the title bar to let the AI answer by itself — only question-like sentences trigger it.
-5. For answers grounded in your experience, import material with **📄Resume** / **📋JD** (`.md/.txt/.docx/.pdf`). Parsing is local; the text is only sent to the LLM you configured, and only as context for a question you asked.
+5. For answers grounded in your files, use **📄Resume**, **📋JD**, or **Add files** in the right pane. You can select multiple PDF, Word (`.docx`), text, data, or common code files and remove them individually. Parsing is local; bounded excerpts go to your configured answer provider when you ask the AI or warm the API answer model's cache. Add files before screen sharing because the macOS file chooser may appear in the shared view.
 
 Other title-bar controls:
 

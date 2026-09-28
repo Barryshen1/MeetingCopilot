@@ -424,6 +424,57 @@ body {
   flex: 1;
 }
 
+/* Session materials stay visible without crowding the session controls. */
+.material-bar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 5px;
+  max-height: 88px;
+  overflow-y: auto;
+  padding: 5px 10px;
+  background: var(--surface-soft);
+  border-bottom: 1px solid var(--border-soft);
+  flex-shrink: 0;
+}
+
+.material-slot,
+.reference-file-list {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  min-width: 0;
+}
+
+.reference-file-list {
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.material-share-hint {
+  color: var(--text-dim);
+  font-size: 10px;
+  line-height: 1.3;
+}
+
+.material-file-name,
+.reference-file-name {
+  max-width: 150px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.reference-file-name {
+  padding: 1px 7px;
+  border: 1px solid var(--on-border);
+  border-radius: 6px;
+  background: var(--on-bg);
+  color: var(--on-text);
+  font-size: 11px;
+  line-height: 1.4;
+}
+
 .settings-hint {
   font-size: 10px;
   color: var(--text-dim);

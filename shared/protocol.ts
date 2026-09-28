@@ -26,8 +26,24 @@ export type ThemeMode = 'dark' | 'light' | 'system';
 export type UiLang = 'zh' | 'en';
 /** Screenshot question style; typed and transcript questions do not use this. */
 export type ScreenshotMode = 'general' | 'coding-test';
-/** per-session material slots: resume vs job description */
+/** The two named material slots. Additional files use a multi-file picker. */
 export type KbSlot = 'resume' | 'jd';
+/** Keep every visible reference file eligible for the bounded answer prompt. */
+export const MAX_SESSION_ATTACHMENTS = 20;
+
+/** Text extracted from a user-selected local file. */
+export interface PickedDocument {
+  name: string;
+  text: string;
+  chars: number;
+}
+
+/** Locally parsed text from an additional file. The renderer assigns the id. */
+export interface SessionAttachment {
+  id: string;
+  name: string;
+  text: string;
+}
 
 /** outcome of a provider connection test (Phase 3 runs them; the settings
  * schema stores the last result so the UI can show it after a restart) */
@@ -462,6 +478,8 @@ export interface StoredSession {
   resumeText?: string;
   jdName?: string;
   jdText?: string;
+  /** Additional reference files for this session; absent in older sessions. */
+  attachments?: SessionAttachment[];
   /** rolling interview memo (P1): ≤800-char structured summary, async-updated */
   memo?: string;
 }
@@ -491,6 +509,8 @@ export interface LlmAskPayload {
   /** dual-slot session material (P0-2) */
   resume?: string;
   jd?: string;
+  /** Additional reference files for the current session. */
+  attachments?: SessionAttachment[];
   /** rolling interview memo (P1) */
   memo?: string;
 }
@@ -537,9 +557,11 @@ export const IPC = {
   knowledgeImport: 'knowledge:import',
   /** invoke: () => {chars:number} — clear the global default KB */
   knowledgeClear: 'knowledge:clear',
-  /** invoke: (KbSlot) => {name,text,chars} | null — pick a resume/JD document
+  /** invoke: (KbSlot) => PickedDocument | null — pick a named session document
    * (.md/.txt/.docx/.pdf, parsed deterministically) for the CURRENT session */
   knowledgePick: 'knowledge:pick',
+  /** invoke: () => PickedDocument[] | null — pick additional session files */
+  knowledgePickFiles: 'knowledge:pick-files',
   /** invoke: () => SessionsFile — load persisted sessions */
   sessionsLoad: 'sessions:load',
   /** send: (SessionsFile) — persist sessions (debounced by renderer) */
@@ -570,7 +592,7 @@ export const IPC = {
   llmCancel: 'llm:cancel',
   /** main -> renderer: LlmEvent stream */
   llmEvent: 'llm:event',
-  /** send: ({resume?, jd?}) — warm the DeepSeek KV prefix cache (P1-6):
+  /** send: ({resume?, jd?, attachments?}) — warm the DeepSeek KV prefix cache (P1-6):
    * one max_tokens=1 request whose system prompt is byte-identical to real
    * answer requests, so the first real question prefills from cache */
   llmPrewarm: 'llm:prewarm',

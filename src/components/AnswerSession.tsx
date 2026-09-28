@@ -28,6 +28,7 @@ export function AnswerSession({
   resumeChars,
   jdName,
   jdChars,
+  referenceFiles,
   notice,
   visionReady,
   answersReady,
@@ -38,6 +39,8 @@ export function AnswerSession({
   onRename,
   onPickKb,
   onClearKb,
+  onAddReference,
+  onRemoveReference,
   onCancel,
   onClear,
   onFreeAsk,
@@ -55,6 +58,7 @@ export function AnswerSession({
   resumeChars: number;
   jdName?: string;
   jdChars: number;
+  referenceFiles: { id: string; name: string; chars: number }[];
   /** transient parse warning (e.g. scanned PDF with no text layer) */
   notice?: string | null;
   visionReady: boolean;
@@ -67,6 +71,8 @@ export function AnswerSession({
   onRename: (id: string, name: string) => void;
   onPickKb: (slot: KbSlot) => void;
   onClearKb: (slot: KbSlot) => void;
+  onAddReference: () => void;
+  onRemoveReference: (id: string) => void;
   onCancel: (id: string) => void;
   onClear: () => void;
   onFreeAsk: (question: string) => void;
@@ -150,45 +156,86 @@ export function AnswerSession({
         <button className="btn btn-sm" onClick={() => onDelete(currentId)} title={t.answer.deleteTitle}>
           🗑
         </button>
-        <button
-          className={resumeChars > 0 ? 'btn btn-sm btn-on' : 'btn btn-sm'}
-          onClick={() => onPickKb('resume')}
-          title={
-            resumeChars > 0
-              ? t.answer.resumeSetTitle(resumeName ?? '', resumeChars)
-              : t.answer.resumeEmptyTitle
-          }
-        >
-          📄{resumeChars > 0 ? resumeName ?? t.answer.resume : t.answer.resume}
-        </button>
-        {resumeChars > 0 && (
-          <button className="btn btn-sm" onClick={() => onClearKb('resume')} title={t.answer.resumeRemoveTitle}>
-            ×
-          </button>
-        )}
-        <button
-          className={jdChars > 0 ? 'btn btn-sm btn-on' : 'btn btn-sm'}
-          onClick={() => onPickKb('jd')}
-          title={jdChars > 0 ? t.answer.jdSetTitle(jdName ?? '', jdChars) : t.answer.jdEmptyTitle}
-        >
-          📋{jdChars > 0 ? jdName ?? t.answer.jd : t.answer.jd}
-        </button>
-        {jdChars > 0 && (
-          <button className="btn btn-sm" onClick={() => onClearKb('jd')} title={t.answer.jdRemoveTitle}>
-            ×
-          </button>
-        )}
         <span className="session-spacer" />
         <button className="btn btn-sm" onClick={onClear} title={t.answer.clearTitle}>
           {t.answer.clear}
         </button>
       </header>
+      <div className="material-bar" role="group" aria-label={t.answer.materialsLabel}>
+        <div className="material-slot">
+          <button
+            className={resumeChars > 0 ? 'btn btn-sm btn-on material-file-name' : 'btn btn-sm material-file-name'}
+            onClick={() => onPickKb('resume')}
+            title={
+              resumeChars > 0
+                ? t.answer.resumeSetTitle(resumeName ?? '', resumeChars)
+                : t.answer.resumeEmptyTitle
+            }
+          >
+            📄{resumeChars > 0 ? resumeName ?? t.answer.resume : t.answer.resume}
+          </button>
+          {resumeChars > 0 && (
+            <button
+              className="btn btn-sm"
+              onClick={() => onClearKb('resume')}
+              title={t.answer.resumeRemoveTitle}
+              aria-label={t.answer.resumeRemoveTitle}
+            >
+              ×
+            </button>
+          )}
+        </div>
+        <div className="material-slot">
+          <button
+            className={jdChars > 0 ? 'btn btn-sm btn-on material-file-name' : 'btn btn-sm material-file-name'}
+            onClick={() => onPickKb('jd')}
+            title={jdChars > 0 ? t.answer.jdSetTitle(jdName ?? '', jdChars) : t.answer.jdEmptyTitle}
+          >
+            📋{jdChars > 0 ? jdName ?? t.answer.jd : t.answer.jd}
+          </button>
+          {jdChars > 0 && (
+            <button
+              className="btn btn-sm"
+              onClick={() => onClearKb('jd')}
+              title={t.answer.jdRemoveTitle}
+              aria-label={t.answer.jdRemoveTitle}
+            >
+              ×
+            </button>
+          )}
+        </div>
+        <button className="btn btn-sm" onClick={onAddReference} title={t.answer.addReferenceTitle}>
+          {t.answer.addReference}
+        </button>
+        {window.mc.platform === 'darwin' && (
+          <span className="material-share-hint">{t.answer.filePickerShareHint}</span>
+        )}
+        {referenceFiles.length > 0 && (
+          <div className="reference-file-list" role="list" aria-label={t.answer.referenceFilesLabel}>
+            {referenceFiles.map((file) => (
+              <div className="material-slot" role="listitem" key={file.id}>
+                <span className="reference-file-name" title={t.answer.referenceFileTitle(file.name, file.chars)}>
+                  📎{file.name}
+                </span>
+                <button
+                  className="btn btn-sm"
+                  onClick={() => onRemoveReference(file.id)}
+                  title={t.answer.removeReferenceTitle(file.name)}
+                  aria-label={t.answer.removeReferenceTitle(file.name)}
+                >
+                  ×
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
       {notice && <div className="kb-notice">{notice}</div>}
       <div className="session" ref={boxRef} onScroll={onScroll}>
         {turns.length === 0 ? (
           <div className="pane-empty">
             {t.answer.empty}
-            {resumeChars === 0 && t.answer.emptyKbHint}
+            {resumeChars === 0 && jdChars === 0 && referenceFiles.length === 0 && t.answer.emptyKbHint}
           </div>
         ) : (
           turns.map((turn) => (

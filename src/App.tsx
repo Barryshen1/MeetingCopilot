@@ -7,8 +7,10 @@ import type {
   LlmAskPayload,
   PublicSettings,
   ScreenshotMode,
+  SessionAttachment,
   StoredSession,
 } from '../shared/protocol';
+import { MAX_SESSION_ATTACHMENTS } from '../shared/protocol';
 import {
   appendSegment,
   nextSegmentId,
@@ -106,6 +108,7 @@ export function App() {
   const currentIdRef = useRef<string>('');
   const answerLangRef = useRef<AnswerLang>('auto');
   const loaded = useRef(false);
+  const filePickerPendingRef = useRef(false);
 
   // UI language: settings-driven; ref mirror so stable callbacks stay fresh
   const t = getDict(settings?.ui.lang);
@@ -149,12 +152,18 @@ export function App() {
     ]);
   }, []);
 
-  /** current session's dual-slot material (resume / JD / rolling memo) */
-  const currentMaterial = useCallback((): { resume?: string; jd?: string; memo?: string } => {
+  /** current session's material (resume / JD / extra files / rolling memo) */
+  const currentMaterial = useCallback((): {
+    resume?: string;
+    jd?: string;
+    attachments: SessionAttachment[];
+    memo?: string;
+  } => {
     const s = sessionsRef.current.find((x) => x.id === currentIdRef.current);
     return {
       resume: s?.resumeText || undefined,
       jd: s?.jdText || undefined,
+      attachments: s?.attachments ?? [],
       memo: s?.memo || undefined,
     };
   }, []);
@@ -163,7 +172,7 @@ export function App() {
   const prewarm = useCallback(
     (immediate: boolean) => {
       const m = currentMaterial();
-      window.mc.prewarm({ resume: m.resume, jd: m.jd, immediate });
+      window.mc.prewarm({ resume: m.resume, jd: m.jd, attachments: m.attachments, immediate });
     },
     [currentMaterial],
   );
@@ -257,7 +266,8 @@ export function App() {
       const background = screenshotMode === 'general'
         ? [m.resume, m.jd].filter(Boolean).join('\n\n') || undefined
         : undefined;
-      window.mc.shotAsk({ requestId, question, background, imageDataUrl, screenshotMode });
+      const attachments = screenshotMode === 'general' ? m.attachments : undefined;
+      window.mc.shotAsk({ requestId, question, background, attachments, imageDataUrl, screenshotMode });
     },
     [appendTurn, currentMaterial, maybeTitle],
   );
@@ -681,28 +691,35 @@ export function App() {
 
   const pickKb = useCallback(
     async (slot: KbSlot) => {
+      const sessionId = currentIdRef.current;
+      if (!sessionId) return;
       const r = await window.mc.pickKnowledge(slot);
       if (!r) return;
+      const session = sessionsRef.current.find((item) => item.id === sessionId);
+      if (!session) return;
       if (!r.text.trim()) {
         // deterministic parsers return '' for scanned/image-only PDFs
-        setKbNotice(tRef.current.app.kbNoText(r.name));
+        if (currentIdRef.current === sessionId) setKbNotice(tRef.current.app.kbNoText(r.name));
         return;
       }
-      setKbNotice(null);
-      patchSession(currentIdRef.current, (s) =>
+      if (currentIdRef.current === sessionId) setKbNotice(null);
+      patchSession(sessionId, (s) =>
         slot === 'resume'
           ? { ...s, resumeName: r.name, resumeText: r.text }
           : { ...s, jdName: r.name, jdText: r.text },
       );
       // material changed → reheat the prefix cache with the fresh bytes;
       // patchSession is async (React state), so pass the new slots directly
-      window.mc.prewarm({
-        resume: slot === 'resume' ? r.text : currentMaterial().resume,
-        jd: slot === 'jd' ? r.text : currentMaterial().jd,
-        immediate: true,
-      });
+      if (currentIdRef.current === sessionId) {
+        window.mc.prewarm({
+          resume: slot === 'resume' ? r.text : session.resumeText,
+          jd: slot === 'jd' ? r.text : session.jdText,
+          attachments: session.attachments,
+          immediate: true,
+        });
+      }
     },
-    [patchSession, currentMaterial],
+    [patchSession],
   );
 
   const clearKb = useCallback(
@@ -716,10 +733,67 @@ export function App() {
       window.mc.prewarm({
         resume: slot === 'resume' ? undefined : currentMaterial().resume,
         jd: slot === 'jd' ? undefined : currentMaterial().jd,
+        attachments: currentMaterial().attachments,
       });
     },
     [patchSession, currentMaterial],
   );
+
+  const addReferenceFiles = useCallback(async () => {
+    if (filePickerPendingRef.current) return;
+    const sessionId = currentIdRef.current;
+    const initialSession = sessionsRef.current.find((item) => item.id === sessionId);
+    if (!initialSession) return;
+    if ((initialSession.attachments?.length ?? 0) >= MAX_SESSION_ATTACHMENTS) {
+      setKbNotice(tRef.current.app.referenceFileLimit);
+      return;
+    }
+    filePickerPendingRef.current = true;
+    try {
+      const picked = await window.mc.pickKnowledgeFiles();
+      if (!picked?.length) return;
+      const files: SessionAttachment[] = picked
+        .filter((file) => file.text.trim())
+        .map((file) => ({ id: uid('ref'), name: file.name, text: file.text }));
+      if (!files.length) return;
+      const session = sessionsRef.current.find((item) => item.id === sessionId);
+      if (!session) return;
+      const remaining = Math.max(0, MAX_SESSION_ATTACHMENTS - (session.attachments?.length ?? 0));
+      const accepted = files.slice(0, remaining);
+      if (!accepted.length) {
+        if (currentIdRef.current === sessionId) setKbNotice(tRef.current.app.referenceFileLimit);
+        return;
+      }
+      const attachments = [...(session.attachments ?? []), ...accepted];
+      if (currentIdRef.current === sessionId) {
+        setKbNotice(accepted.length < files.length ? tRef.current.app.referenceFileLimit : null);
+      }
+      patchSession(sessionId, (item) => ({
+        ...item,
+        attachments: [...(item.attachments ?? []), ...accepted],
+      }));
+      if (currentIdRef.current === sessionId) {
+        window.mc.prewarm({
+          resume: session.resumeText,
+          jd: session.jdText,
+          attachments,
+          immediate: true,
+        });
+      }
+    } finally {
+      filePickerPendingRef.current = false;
+    }
+  }, [patchSession]);
+
+  const removeReferenceFile = useCallback((id: string) => {
+    const material = currentMaterial();
+    const attachments = material.attachments.filter((file) => file.id !== id);
+    patchSession(currentIdRef.current, (session) => ({
+      ...session,
+      attachments: (session.attachments ?? []).filter((file) => file.id !== id),
+    }));
+    window.mc.prewarm({ resume: material.resume, jd: material.jd, attachments });
+  }, [currentMaterial, patchSession]);
 
   /** the v1 -> v2 migration marks hand-configured profiles; show the notice
    * once until the user dismisses it (persisted in onboarding state) */
@@ -955,6 +1029,11 @@ export function App() {
           resumeChars={current?.resumeText?.length ?? 0}
           jdName={current?.jdName}
           jdChars={current?.jdText?.length ?? 0}
+          referenceFiles={(current?.attachments ?? []).map((file) => ({
+            id: file.id,
+            name: file.name,
+            chars: file.text.length,
+          }))}
           notice={kbNotice}
           visionReady={visionReady}
           answersReady={answersReady}
@@ -965,6 +1044,8 @@ export function App() {
           onRename={renameSession}
           onPickKb={(slot) => void pickKb(slot)}
           onClearKb={clearKb}
+          onAddReference={() => void addReferenceFiles()}
+          onRemoveReference={removeReferenceFile}
           onCancel={cancelTurn}
           onClear={() => patchSession(currentIdRef.current, (s) => ({ ...s, turns: [] }))}
           onFreeAsk={(q) => askLlm('free', q)}
