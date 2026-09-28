@@ -36,6 +36,7 @@ import { getResourceRoot } from './resourcePaths';
 import { SettingsStore, plainCipher, type SecretCipher } from './settings';
 import { SETUP_READY_MARKER, createSetupWindow } from './setupWindow';
 import { AppTray, trayIconPath } from './tray';
+import { revealAppWindow } from './windowReveal';
 import { isRendererCommand, type TrayCommand, type TrayMenuState } from '../shared/trayMenu';
 import { KnowledgeStore } from './knowledge';
 import { SessionStore } from './sessions';
@@ -233,7 +234,8 @@ function bootstrap(): void {
   // ---- window visibility + system tray ----------------------------------
   // Quit/hide matrix (Phase 4):
   //   hide  (hotkey / 「—」 / tray toggle) -> window stays alive, app keeps
-  //         running, tray is the way back; NEVER quits.
+  //         running, tray (and on macOS the Dock icon) is the way back;
+  //         NEVER quits.
   //   quit  (titlebar ✕ / tray 退出 / OS shutdown) -> app.quit() -> before-quit
   //         reaps the ASR utilityProcess, the python sidecar and the tray.
   //   first-run wizard closed without completing -> app.quit() (Phase 2), since
@@ -1283,10 +1285,21 @@ function bootstrap(): void {
   });
 
   app.on('second-instance', () => {
-    const target = setupWin ?? win;
-    if (target?.isMinimized()) target.restore();
-    target?.show();
-    target?.focus();
+    revealAppWindow(setupWin, win);
+  });
+
+  // macOS: clicking the Dock icon of the running app (or opening it again from
+  // Finder / Launchpad) is a "reopen", which Electron reports as `activate` —
+  // never as `second-instance`. Electron answers AppKit's reopen request with
+  // hasVisibleWindows, which is false once the overlay is hidden (「—」 /
+  // hotkey / tray), so AppKit does nothing on its own: without this handler the
+  // Dock click left the window hidden. (A ⌘M-minimised window still counts as
+  // visible and AppKit restored it; revealAppWindow covers both cases.)
+  app.on('activate', () => {
+    // a screenshot / region pick hides the overlay on purpose and restores it
+    // itself; showing it mid-capture would put it into the image
+    if (screenCaptureInProgress) return;
+    revealAppWindow(setupWin, win);
   });
 
   app.on('before-quit', () => {
