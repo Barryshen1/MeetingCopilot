@@ -241,7 +241,7 @@ export function AnswerSession({
           <>
             <button
               className="btn"
-              title={t.answer.shotTitle}
+              aria-label={t.answer.shotTitle}
               onClick={() => {
                 const q = inputRef.current?.value.trim() ?? '';
                 if (inputRef.current) inputRef.current.value = '';
@@ -252,7 +252,7 @@ export function AnswerSession({
             </button>
             <button
               className="btn btn-sm"
-              title={t.answer.regionShotTitle}
+              aria-label={t.answer.regionShotTitle}
               onClick={async () => {
                 const q = inputRef.current?.value.trim() ?? '';
                 const img = await window.mc.pickRegion();

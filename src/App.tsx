@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { disableNativeTooltips } from './noNativeTooltips';
 import type {
   AnswerLang,
   AsrEvent,
@@ -87,6 +88,11 @@ export function App() {
   const [sessions, setSessions] = useState<StoredSession[]>([]);
   const [currentId, setCurrentId] = useState<string>('');
   const [kbNotice, setKbNotice] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (window.mc.platform !== 'darwin') return;
+    return disableNativeTooltips(document.body);
+  }, []);
 
   const loopbackRef = useRef<LoopbackCapture | null>(null);
   const themInputRef = useRef<MicCapture | null>(null);
