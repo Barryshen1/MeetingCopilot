@@ -82,6 +82,7 @@ export function defaultSettings(platform: string = process.platform): SettingsFi
       localRealtime: { model: 'fun-asr-nano' },
     },
     ui: {
+      lang: 'zh',
       stealth: true,
       hotkeyToggle: hotkeys.toggle,
       hotkeyShot: hotkeys.shot,
