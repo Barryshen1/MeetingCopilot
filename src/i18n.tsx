@@ -21,6 +21,8 @@ const zh = {
     latestRemark: '对方最新发言',
     readShot: '解读当前截图',
     shotQuestion: '截图提问',
+    readCodingShot: '解答截图中的编程题',
+    codingShotQuestion: '编程题截图',
     captureStartFail: (msg: string) => `采集启动失败: ${msg}`,
     micStartFail: (msg: string) => `麦克风启动失败: ${msg}`,
     themInputSwitchFail: (msg: string) => `对方音频输入切换失败: ${msg}`,
@@ -116,6 +118,10 @@ const zh = {
     shotTitle: '立即截取鼠标所在显示器并提问（输入框内容作为问题，每次点击截取一次）',
     regionShot: '框选',
     regionShotTitle: '框选屏幕区域并提问（输入框内容作为问题）',
+    screenshotModeLabel: '截图模式',
+    screenshotModeTitle: '只影响自动截图、框选截图和截图快捷键；文字提问不变',
+    screenshotGeneral: '普通',
+    screenshotCodingTest: 'Coding Test',
   },
   status: {
     state: {
@@ -471,6 +477,8 @@ const en: Dict = {
     latestRemark: 'Their latest remark',
     readShot: 'Explain the current screenshot',
     shotQuestion: 'Screenshot question',
+    readCodingShot: 'Solve the coding problem in the screenshot',
+    codingShotQuestion: 'Coding test screenshot',
     captureStartFail: (msg: string) => `Capture failed to start: ${msg}`,
     micStartFail: (msg: string) => `Microphone failed to start: ${msg}`,
     themInputSwitchFail: (msg: string) => `Failed to switch the other-party input: ${msg}`,
@@ -570,6 +578,10 @@ const en: Dict = {
     shotTitle: 'Capture the display under the pointer once and ask (input text becomes the question)',
     regionShot: 'Region',
     regionShotTitle: 'Select a screen region and ask (input text becomes the question)',
+    screenshotModeLabel: 'Screenshot mode',
+    screenshotModeTitle: 'Applies to full-screen, region, and hotkey screenshots only; typed questions stay unchanged',
+    screenshotGeneral: 'General',
+    screenshotCodingTest: 'Coding Test',
   },
   status: {
     state: {

@@ -33,6 +33,7 @@ import { useT } from '../i18n';
 import { ConnectionResult } from './providers/ConnectionResult';
 import { connectionResultCopy } from './providers/copy';
 import { CodexProviderSettings } from './CodexProviderSettings';
+import { InWindowSelect } from './InWindowSelect';
 
 type AsrBackend = 'local' | 'cloud' | 'cloud-realtime' | 'local-realtime';
 
@@ -348,20 +349,18 @@ export function SettingsPanel({
     const presets = presetsForCapability(capability).filter((p) => p.baseUrl && p.model);
     const current = findPresetByEndpoint(currentBaseUrl, currentModel, capability);
     return (
-      <select
+      <InWindowSelect
         value={current?.id ?? ''}
-        onChange={(e) => {
-          const p = findPresetById(e.target.value);
+        ariaLabel={t.settings.providerPreset}
+        onChange={(value) => {
+          const p = findPresetById(value);
           if (p) onPick(p);
         }}
-      >
-        {!current && <option value="">{t.settings.providerCustom}</option>}
-        {presets.map((p) => (
-          <option key={p.id} value={p.id}>
-            {presetName(p)}
-          </option>
-        ))}
-      </select>
+        options={[
+          ...(!current ? [{ value: '', label: t.settings.providerCustom }] : []),
+          ...presets.map((p) => ({ value: p.id, label: presetName(p) })),
+        ]}
+      />
     );
   };
 
@@ -520,16 +519,15 @@ export function SettingsPanel({
     return p ? presetName(p) : `${model || '—'}`;
   };
 
-  const deviceOptions = (
-    <>
-      <option value="">{t.settings.deviceDefault}</option>
-      {devices.map((d) => (
-        <option key={d.deviceId} value={d.deviceId}>
-          {d.label || d.deviceId}
-        </option>
-      ))}
-    </>
-  );
+  const deviceOptions = [
+    { value: '', label: t.settings.deviceDefault },
+    ...devices.map((d) => ({ value: d.deviceId, label: d.label || d.deviceId })),
+  ];
+
+  // A disconnected saved device displays the system default until the device
+  // returns, while the saved id remains in the draft unless the user changes it.
+  const visibleDeviceId = (id: string) =>
+    devices.some((d) => d.deviceId === id) ? id : '';
 
   return (
     <div className="settings">
@@ -548,27 +546,38 @@ export function SettingsPanel({
       )}
       <div className="settings-row">
         <label>{t.settings.asrBackend}</label>
-        <select value={asrBackend} onChange={(e) => setAsrBackend(e.target.value as AsrBackend)}>
-          <optgroup label={t.settings.asrLocalGroup}>
-            <option value="local-realtime">{t.settings.asrLocalRealtime}</option>
-            <option value="local">{t.settings.asrLocalWhisper}</option>
-          </optgroup>
-          <optgroup label={t.settings.asrCloudGroup}>
-            <option value="cloud-realtime">{t.settings.asrCloudRealtime}</option>
-            <option value="cloud">{t.settings.asrCloudSeg}</option>
-          </optgroup>
-        </select>
+        <InWindowSelect
+          value={asrBackend}
+          ariaLabel={t.settings.asrBackend}
+          onChange={(value) => setAsrBackend(value as AsrBackend)}
+          options={[
+            {
+              value: 'local-realtime',
+              label: t.settings.asrLocalRealtime,
+              group: t.settings.asrLocalGroup,
+            },
+            { value: 'local', label: t.settings.asrLocalWhisper, group: t.settings.asrLocalGroup },
+            {
+              value: 'cloud-realtime',
+              label: t.settings.asrCloudRealtime,
+              group: t.settings.asrCloudGroup,
+            },
+            { value: 'cloud', label: t.settings.asrCloudSeg, group: t.settings.asrCloudGroup },
+          ]}
+        />
       </div>
       {asrBackend === 'local-realtime' && (
         <div className="settings-row">
           <label>{t.settings.localRtModel}</label>
-          <select value={rtLocalModel} onChange={(e) => setRtLocalModel(e.target.value)}>
-            {LOCAL_REALTIME_MODELS.map((m) => (
-              <option key={m.value} value={m.value}>
-                {t.uiLang === 'zh' ? m.nameZh : m.nameEn}
-              </option>
-            ))}
-          </select>
+          <InWindowSelect
+            value={rtLocalModel}
+            ariaLabel={t.settings.localRtModel}
+            onChange={setRtLocalModel}
+            options={LOCAL_REALTIME_MODELS.map((m) => ({
+              value: m.value,
+              label: t.uiLang === 'zh' ? m.nameZh : m.nameEn,
+            }))}
+          />
         </div>
       )}
       {asrBackend === 'cloud-realtime' && (
@@ -597,20 +606,30 @@ export function SettingsPanel({
       )}
       <div className="settings-row">
         <label>{t.settings.asrLanguage}</label>
-        <select value={language} onChange={(e) => setLanguage(e.target.value as AsrLanguage)}>
-          <option value="auto">{t.settings.asrLangAuto}</option>
-          <option value="chinese">{t.settings.asrLangZh}</option>
-          <option value="english">{t.settings.asrLangEn}</option>
-        </select>
+        <InWindowSelect
+          value={language}
+          ariaLabel={t.settings.asrLanguage}
+          onChange={(value) => setLanguage(value as AsrLanguage)}
+          options={[
+            { value: 'auto', label: t.settings.asrLangAuto },
+            { value: 'chinese', label: t.settings.asrLangZh },
+            { value: 'english', label: t.settings.asrLangEn },
+          ]}
+        />
       </div>
 
       <div className="settings-row">
         <label>{t.settings.llmBackend}</label>
-        <select value={llmBackend} disabled={anyTesting}
-          onChange={(e) => setLlmBackend(e.target.value as 'openai-compatible' | 'codex-cli')}>
-          <option value="openai-compatible">{t.settings.llmApiBackend}</option>
-          <option value="codex-cli">Codex CLI</option>
-        </select>
+        <InWindowSelect
+          value={llmBackend}
+          ariaLabel={t.settings.llmBackend}
+          disabled={anyTesting}
+          onChange={(value) => setLlmBackend(value as 'openai-compatible' | 'codex-cli')}
+          options={[
+            { value: 'openai-compatible', label: t.settings.llmApiBackend },
+            { value: 'codex-cli', label: 'Codex CLI' },
+          ]}
+        />
       </div>
       {llmBackend === 'codex-cli' ? (
         <CodexProviderSettings
@@ -634,34 +653,54 @@ export function SettingsPanel({
       </>}
       <div className="settings-row">
         <label>{t.settings.answerLangLabel}</label>
-        <select value={answerLang} onChange={(e) => setAnswerLang(e.target.value as AnswerLang)}>
-          <option value="chinese">{t.settings.answerLangZh}</option>
-          <option value="english">{t.settings.answerLangEn}</option>
-        </select>
+        <InWindowSelect
+          value={answerLang}
+          ariaLabel={t.settings.answerLangLabel}
+          onChange={(value) => setAnswerLang(value as AnswerLang)}
+          options={[
+            { value: 'chinese', label: t.settings.answerLangZh },
+            { value: 'english', label: t.settings.answerLangEn },
+          ]}
+        />
       </div>
 
       <div className="settings-row">
         <label>{t.settings.uiLang}</label>
-        <select value={uiLang} onChange={(e) => setUiLang(e.target.value as UiLang)}>
-          <option value="zh">中文</option>
-          <option value="en">English</option>
-        </select>
+        <InWindowSelect
+          value={uiLang}
+          ariaLabel={t.settings.uiLang}
+          onChange={(value) => setUiLang(value as UiLang)}
+          options={[
+            { value: 'zh', label: '中文' },
+            { value: 'en', label: 'English' },
+          ]}
+        />
       </div>
       <div className="settings-row">
         <label>{t.settings.theme}</label>
-        <select value={theme} onChange={(e) => setTheme(e.target.value as ThemeMode)}>
-          <option value="dark">{t.settings.themeDark}</option>
-          <option value="light">{t.settings.themeLight}</option>
-          <option value="system">{t.settings.themeSystem}</option>
-        </select>
+        <InWindowSelect
+          value={theme}
+          ariaLabel={t.settings.theme}
+          onChange={(value) => setTheme(value as ThemeMode)}
+          options={[
+            { value: 'dark', label: t.settings.themeDark },
+            { value: 'light', label: t.settings.themeLight },
+            { value: 'system', label: t.settings.themeSystem },
+          ]}
+        />
       </div>
       <div className="settings-row">
         <label>{t.settings.fontScaleLabel}</label>
-        <select value={fontScale} onChange={(e) => setFontScale(e.target.value as FontScale)}>
-          <option value="small">{t.settings.fontSmall}</option>
-          <option value="medium">{t.settings.fontMedium}</option>
-          <option value="large">{t.settings.fontLarge}</option>
-        </select>
+        <InWindowSelect
+          value={fontScale}
+          ariaLabel={t.settings.fontScaleLabel}
+          onChange={(value) => setFontScale(value as FontScale)}
+          options={[
+            { value: 'small', label: t.settings.fontSmall },
+            { value: 'medium', label: t.settings.fontMedium },
+            { value: 'large', label: t.settings.fontLarge },
+          ]}
+        />
       </div>
 
       <div className="settings-row">
@@ -678,28 +717,36 @@ export function SettingsPanel({
       </div>
       <div className="settings-row">
         <label>{t.settings.autoLaunch}</label>
-        <select
+        <InWindowSelect
           value={autoLaunch ? 'on' : 'off'}
-          onChange={(e) => setAutoLaunch(e.target.value === 'on')}
-        >
-          <option value="off">{t.settings.autoLaunchOff}</option>
-          <option value="on">{t.settings.autoLaunchOn}</option>
-        </select>
+          ariaLabel={t.settings.autoLaunch}
+          onChange={(value) => setAutoLaunch(value === 'on')}
+          options={[
+            { value: 'off', label: t.settings.autoLaunchOff },
+            { value: 'on', label: t.settings.autoLaunchOn },
+          ]}
+        />
         <span className="settings-inline-hint">{t.settings.autoLaunchHint}</span>
       </div>
 
       <div className="settings-section">{t.settings.audioSection}</div>
       <div className="settings-row">
         <label>{t.settings.themDevice}</label>
-        <select value={themDeviceId} onChange={(e) => setThemDeviceId(e.target.value)}>
-          {deviceOptions}
-        </select>
+        <InWindowSelect
+          value={visibleDeviceId(themDeviceId)}
+          ariaLabel={t.settings.themDevice}
+          onChange={setThemDeviceId}
+          options={deviceOptions}
+        />
       </div>
       <div className="settings-row">
         <label>{t.settings.micDevice}</label>
-        <select value={micDeviceId} onChange={(e) => setMicDeviceId(e.target.value)}>
-          {deviceOptions}
-        </select>
+        <InWindowSelect
+          value={visibleDeviceId(micDeviceId)}
+          ariaLabel={t.settings.micDevice}
+          onChange={setMicDeviceId}
+          options={deviceOptions}
+        />
       </div>
       <div className="settings-hint">{t.settings.otherHint}</div>
 

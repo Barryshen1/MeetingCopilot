@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
-import type { KbSlot, StoredSession } from '../../shared/protocol';
+import type { KbSlot, ScreenshotMode, StoredSession } from '../../shared/protocol';
 import { useT } from '../i18n';
+import { InWindowSelect } from './InWindowSelect';
 
 export type TurnKind = 'segment' | 'continuous' | 'free' | 'translate' | 'vision';
 
@@ -41,6 +42,8 @@ export function AnswerSession({
   onClear,
   onFreeAsk,
   onShotAsk,
+  screenshotMode,
+  onScreenshotModeChange,
 }: {
   sessions: StoredSession[];
   currentId: string;
@@ -65,6 +68,8 @@ export function AnswerSession({
   onClear: () => void;
   onFreeAsk: (question: string) => void;
   onShotAsk: (question: string, imageDataUrl?: string) => void;
+  screenshotMode: ScreenshotMode;
+  onScreenshotModeChange: (mode: ScreenshotMode) => void;
 }) {
   const t = useT();
   const boxRef = useRef<HTMLDivElement>(null);
@@ -114,18 +119,13 @@ export function AnswerSession({
             }}
           />
         ) : (
-          <select
+          <InWindowSelect
             className="session-select"
             value={currentId}
-            onChange={(e) => onSwitch(e.target.value)}
-            title={t.answer.switchTitle}
-          >
-            {sessions.map((s) => (
-              <option key={s.id} value={s.id}>
-                {s.name}
-              </option>
-            ))}
-          </select>
+            onChange={onSwitch}
+            ariaLabel={t.answer.switchTitle}
+            options={sessions.map((s) => ({ value: s.id, label: s.name }))}
+          />
         )}
         <button
           className="btn btn-sm"
@@ -220,6 +220,29 @@ export function AnswerSession({
         )}
       </div>
       {!answersReady && <div className="kb-notice">{answersHint}</div>}
+      {visionReady && (
+        <div className="screenshot-mode-row">
+          <span>{t.answer.screenshotModeLabel}</span>
+          <div className="screenshot-mode-options" role="group" aria-label={t.answer.screenshotModeTitle}>
+            <button
+              type="button"
+              className={screenshotMode === 'general' ? 'btn btn-sm btn-on' : 'btn btn-sm'}
+              aria-pressed={screenshotMode === 'general'}
+              onClick={() => onScreenshotModeChange('general')}
+            >
+              {t.answer.screenshotGeneral}
+            </button>
+            <button
+              type="button"
+              className={screenshotMode === 'coding-test' ? 'btn btn-sm btn-on' : 'btn btn-sm'}
+              aria-pressed={screenshotMode === 'coding-test'}
+              onClick={() => onScreenshotModeChange('coding-test')}
+            >
+              {t.answer.screenshotCodingTest}
+            </button>
+          </div>
+        </div>
+      )}
       <div className="answer-input">
         <input
           ref={inputRef}

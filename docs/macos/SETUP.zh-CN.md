@@ -15,7 +15,7 @@ macOS 版保留了完整链路——流式转录、提词式回答、简历/JD �
 |---|---|
 | 操作系统 | Apple 芯片 macOS 14+ |
 | 运行时 | Node.js ≥ 20 与 npm |
-| 大模型 | 任意 OpenAI 兼容 API key——推荐 DeepSeek |
+| 大模型 | 已安装并登录的 Codex CLI，或 OpenAI 兼容 API key |
 | 本地流式转录（默认） | 项目 `.venv` 里的 Python 3.10/3.11；Apple MPS，自动 CPU 回退 |
 | 系统声音采集 | [BlackHole](https://github.com/ExistentialAudio/BlackHole)（或同类虚拟音频设备） |
 | 云端转录（可选） | 阿里云百炼（DashScope）key，或 MiMo key |
@@ -23,9 +23,9 @@ macOS 版保留了完整链路——流式转录、提词式回答、简历/JD �
 ## 安装与启动
 
 ```bash
-git clone https://github.com/JWM0203/MeetingCopilot.git
+git clone https://github.com/Barryshen1/MeetingCopilot.git
 cd MeetingCopilot
-npm install        # postinstall 自动应用 patches/（transformers.js 补丁，勿删）
+npm ci             # postinstall 自动应用 patches/（transformers.js 补丁，勿删）
 npm run build
 npm start
 ```
@@ -59,7 +59,9 @@ npm start
 
 ## 隐身限制
 
-「隐身」开关仍会应用 Electron 内容保护，旧式采集 API 会遵守；但基于新版 **ScreenCaptureKit** 的应用可能仍能捕获窗口——macOS 上请把隐身当作尽力而为。全局快捷键默认 **Command+B**（隐藏/呼出）、**Command+Shift+S**（框选截图问答）。
+「隐身」开关会应用 Electron 内容保护，但基于新版 **ScreenCaptureKit** 的共享软件仍可能拍到应用窗口，不能保证完全隐身。普通、Coding Test 等应用内选项现在留在主窗口内；macOS 中文输入法候选栏、菜单栏菜单、文件选择器、系统授权弹窗和框选覆盖窗口仍可能出现在实时全屏共享中。
+
+共享时建议切换到英文输入法，用 **Command+Shift+S** 直接截取鼠标所在显示器并提问；**Command+B** 用于隐藏/呼出主窗口。截图前应用会暂时隐藏自己的主窗口，但无法控制其他软件正在共享的画面。开始共享前，先用所选会议软件做一次实际预览。
 
 ## 数据位置
 

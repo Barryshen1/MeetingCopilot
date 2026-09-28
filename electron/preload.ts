@@ -12,6 +12,7 @@ import {
   type ProviderTestRequest,
   type ProviderTestResult,
   type PublicSettings,
+  type ScreenshotMode,
   type SessionsFile,
   type SettingsPatch,
   type TrayCommandPayload,
@@ -49,6 +50,7 @@ export interface McApi {
     question: string;
     background?: string;
     imageDataUrl?: string;
+    screenshotMode?: ScreenshotMode;
   }): void;
   /** capture full screen, drag a stealth region overlay; returns cropped dataURL or null */
   pickRegion(): Promise<string | null>;

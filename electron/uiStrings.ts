@@ -9,6 +9,7 @@ import type { TrayMenuLabels } from '../shared/trayMenu';
 const zh = {
   regionTip: '拖动框选要识别的区域 · Esc 取消',
   screenshotBusy: '正在截取屏幕，请稍后重试。',
+  screenshotDialogOpen: '文件选择窗口仍打开。请先关闭它，再截取屏幕。',
   screenshotUnavailable: '无法截取鼠标所在的屏幕，请检查屏幕连接和系统录屏权限后重试。',
   kbImportTitle: '导入个人知识库（.md / .txt）',
   docFilter: '文档',
@@ -47,6 +48,7 @@ type MainDict = typeof zh;
 const en: MainDict = {
   regionTip: 'Drag to select a region · Esc to cancel',
   screenshotBusy: 'A screen capture is in progress. Please try again shortly.',
+  screenshotDialogOpen: 'Close the file picker before taking a screenshot.',
   screenshotUnavailable: 'Could not capture the display under the pointer. Check the display connection and screen recording permission, then retry.',
   kbImportTitle: 'Import personal knowledge base (.md / .txt)',
   docFilter: 'Documents',

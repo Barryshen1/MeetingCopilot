@@ -23,6 +23,8 @@ export type FontScale = 'small' | 'medium' | 'large';
 export type ThemeMode = 'dark' | 'light' | 'system';
 /** UI display language (independent of answerLang, which steers the LLM) */
 export type UiLang = 'zh' | 'en';
+/** Screenshot question style; typed and transcript questions do not use this. */
+export type ScreenshotMode = 'general' | 'coding-test';
 /** per-session material slots: resume vs job description */
 export type KbSlot = 'resume' | 'jd';
 
@@ -218,8 +220,9 @@ export interface SettingsFile {
   ui: {
     stealth: boolean;
     hotkeyToggle: string;
-    /** global hotkey for region-screenshot Q&A */
+    /** global hotkey for full-display screenshot Q&A */
     hotkeyShot: string;
+    screenshotMode: ScreenshotMode;
     opacity: number;
     /** answer-body font size (small=13px / medium=16px / large=19px) */
     fontScale: FontScale;
@@ -302,6 +305,7 @@ export interface PublicSettings {
     stealth: boolean;
     hotkeyToggle: string;
     hotkeyShot: string;
+    screenshotMode: ScreenshotMode;
     opacity: number;
     fontScale: FontScale;
     theme: ThemeMode;
@@ -359,6 +363,7 @@ export interface SettingsPatch {
     stealth?: boolean;
     hotkeyToggle?: string;
     hotkeyShot?: string;
+    screenshotMode?: ScreenshotMode;
     opacity?: number;
     fontScale?: FontScale;
     theme?: ThemeMode;

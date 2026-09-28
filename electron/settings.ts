@@ -86,6 +86,7 @@ export function defaultSettings(platform: string = process.platform): SettingsFi
       stealth: true,
       hotkeyToggle: hotkeys.toggle,
       hotkeyShot: hotkeys.shot,
+      screenshotMode: 'general',
       opacity: 0.94,
       // medium = 16px answer body (was 13px) — readable at a glance mid-interview
       fontScale: 'medium',
@@ -458,6 +459,7 @@ export class SettingsStore {
       knowledge: { chars: 0 },
       ui: {
         ...d.ui,
+        screenshotMode: d.ui.screenshotMode === 'coding-test' ? 'coding-test' : 'general',
         lang: d.ui.lang ?? this.fallbackUiLang,
         // both are optional on disk (files written before Phase 4 lack them)
         // but always booleans on the wire, so the UI needs no ?? dance

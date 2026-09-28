@@ -450,6 +450,42 @@ describe('buildVisionMessages', () => {
     const content = msgs[1].content as Array<{ type: string; text?: string }>;
     expect(content[1].text).toContain('要点');
   });
+
+  it('keeps the existing screenshot prompt when the mode is general', () => {
+    const image = 'data:image/png;base64,AAA';
+    const background = 'My meeting notes';
+    const implicit = buildVisionMessages('', image, background);
+    const explicit = buildVisionMessages('', image, background, 'general');
+    expect(explicit).toEqual(implicit);
+    expect(JSON.stringify(explicit)).toContain(background);
+    const content = explicit[1].content as Array<{ type: string; text?: string }>;
+    expect(content[1].text).toBe('解读这页内容的要点，并给出我应该怎么回应的建议。');
+  });
+
+  it('asks for a complete Python 3 solution and complexity for a coding-test screenshot', () => {
+    const image = 'data:image/png;base64,AAA';
+    const background = 'PRIVATE_RESUME_MARKER';
+    const msgs = buildVisionMessages('  ', image, background, 'coding-test');
+    expect(msgs).toHaveLength(2);
+    const system = msgs[0].content as string;
+    const content = msgs[1].content as Array<{ type: string; image_url?: { url: string }; text?: string }>;
+    expect(system).toMatch(/Python\s*3/i);
+    expect(system).toMatch(/时间复杂度|time complexity/i);
+    expect(system).toMatch(/空间复杂度|space complexity/i);
+    expect(system).not.toMatch(/会议|面试|PPT/i);
+    expect(JSON.stringify(msgs)).not.toContain(background);
+    expect(content[0]).toEqual({ type: 'image_url', image_url: { url: image } });
+    expect(content[1].type).toBe('text');
+    expect(content[1].text).toMatch(/编程|算法|coding|problem/i);
+    expect(content[1].text).not.toContain('这页内容');
+  });
+
+  it('retains an explicit screenshot question in coding-test mode', () => {
+    const question = '  请用双指针解这道题，并解释边界条件。  ';
+    const msgs = buildVisionMessages(question, 'data:image/png;base64,AAA', undefined, 'coding-test');
+    const content = msgs[1].content as Array<{ type: string; text?: string }>;
+    expect(content[1]).toEqual({ type: 'text', text: question.trim() });
+  });
 });
 
 describe('clampTranscript', () => {

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { codexConfigKey, type CodexReasoningEffort, type CodexSettings, type CodexStatus, type CodexTestResult } from '../../shared/codex';
 import type { PublicSettings } from '../../shared/protocol';
 import { useT } from '../i18n';
+import { InWindowSelect } from './InWindowSelect';
 
 const EFFORTS: CodexReasoningEffort[] = ['none', 'minimal', 'low', 'medium', 'high', 'xhigh'];
 
@@ -110,19 +111,20 @@ export function CodexProviderSettings({ config, saved, onChange, onSettingsRefre
     </div>
     <div className="settings-row">
       <label htmlFor="codex-model">{t.settings.codexModel}</label>
-      <select
+      <InWindowSelect
         id="codex-model"
         value={customModel ? '__custom' : !config.model ? '' : selectedModel ? config.model : '__custom'}
         disabled={testing}
-        onChange={(e) => {
-          setCustomModel(e.target.value === '__custom');
-          if (e.target.value !== '__custom') onChange({ ...config, model: e.target.value, reasoningEffort: undefined });
+        onChange={(value) => {
+          setCustomModel(value === '__custom');
+          if (value !== '__custom') onChange({ ...config, model: value, reasoningEffort: undefined });
         }}
-      >
-        <option value="">{t.settings.codexDefaultModel}</option>
-        {(status?.models ?? []).map((m) => <option key={m.id} value={m.id}>{m.displayName} ({m.id})</option>)}
-        <option value="__custom">{t.settings.codexCustomModel}</option>
-      </select>
+        options={[
+          { value: '', label: t.settings.codexDefaultModel },
+          ...(status?.models ?? []).map((m) => ({ value: m.id, label: `${m.displayName} (${m.id})` })),
+          { value: '__custom', label: t.settings.codexCustomModel },
+        ]}
+      />
       {(customModel || (!!config.model && !selectedModel)) && <input
         aria-label={t.settings.codexCustomModel}
         value={config.model ?? ''}
@@ -134,17 +136,19 @@ export function CodexProviderSettings({ config, saved, onChange, onSettingsRefre
     </div>
     <div className="settings-row">
       <label htmlFor="codex-effort">{t.settings.codexEffort}</label>
-      <select
+      <InWindowSelect
         id="codex-effort"
         value={config.reasoningEffort ?? ''}
         disabled={testing}
-        onChange={(e) => onChange({ ...config, reasoningEffort: (e.target.value || undefined) as CodexReasoningEffort | undefined })}
-      >
-        <option value="">{t.settings.codexDefaultEffort}</option>
-        {config.reasoningEffort && !efforts.includes(config.reasoningEffort) &&
-          <option value={config.reasoningEffort}>{config.reasoningEffort} ({t.settings.codexUnsupportedEffort})</option>}
-        {efforts.map((effort) => <option key={effort} value={effort}>{effort}</option>)}
-      </select>
+        onChange={(value) => onChange({ ...config, reasoningEffort: (value || undefined) as CodexReasoningEffort | undefined })}
+        options={[
+          { value: '', label: t.settings.codexDefaultEffort },
+          ...(config.reasoningEffort && !efforts.includes(config.reasoningEffort)
+            ? [{ value: config.reasoningEffort, label: `${config.reasoningEffort} (${t.settings.codexUnsupportedEffort})` }]
+            : []),
+          ...efforts.map((effort) => ({ value: effort, label: effort })),
+        ]}
+      />
     </div>
     <div className="settings-row">
       <div className="key-status">

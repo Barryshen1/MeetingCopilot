@@ -20,7 +20,7 @@ Engineering details live in the [port SDD](macos-port-sdd.md).
 |---|---|
 | OS | Apple-silicon macOS 14+ |
 | Runtime | Node.js ≥ 20 and npm |
-| LLM | Any OpenAI-compatible API key — DeepSeek recommended |
+| LLM | An installed and signed-in Codex CLI, or an OpenAI-compatible API key |
 | Local streaming ASR *(default)* | Python 3.10/3.11 in a project `.venv`; Apple MPS with CPU fallback |
 | System-audio capture | [BlackHole](https://github.com/ExistentialAudio/BlackHole) (or a similar virtual audio device) |
 | Cloud ASR *(optional)* | Alibaba Cloud DashScope API key, or a MiMo key |
@@ -28,9 +28,9 @@ Engineering details live in the [port SDD](macos-port-sdd.md).
 ## Install & run
 
 ```bash
-git clone https://github.com/JWM0203/MeetingCopilot.git
+git clone https://github.com/Barryshen1/MeetingCopilot.git
 cd MeetingCopilot
-npm install        # postinstall applies patches/ (transformers.js patch — do not remove)
+npm ci             # postinstall applies patches/ (transformers.js patch — do not remove)
 npm run build
 npm start
 ```
@@ -78,11 +78,18 @@ paraformer, ~1.7 GB for Nano).
 
 ## Stealth limits
 
-The `Stealth` toggle still applies Electron content protection, and legacy
-capture APIs respect it. However, apps built on modern **ScreenCaptureKit**
-may capture the window anyway — treat stealth as best-effort on macOS. The
-global hotkeys default to **Command+B** (hide/show) and **Command+Shift+S**
-(region-screenshot Q&A).
+The `Stealth` toggle applies Electron content protection, but newer
+**ScreenCaptureKit** clients may still capture the app window. In-app choices,
+including General and Coding Test, now stay inside the main window. The macOS
+Chinese input candidate panel, menu-bar menus, file pickers, permission
+dialogs, and region-selection overlay may still appear in a live full-display
+share.
+
+During sharing, use an English input source and **Command+Shift+S** to capture
+the display under the pointer and ask. **Command+B** hides or shows the main
+window. The app briefly hides its own window before capturing, but cannot
+control another app's live share. Check the result in your meeting app's
+preview before sharing.
 
 ## Data locations
 

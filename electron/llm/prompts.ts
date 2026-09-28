@@ -11,6 +11,7 @@
  *   fast context   = history turns + recent transcript + this question + hint
  */
 import type { ChatMessage } from './adapter';
+import type { ScreenshotMode } from '../../shared/protocol';
 import { classifyQuestion, isLikelyQuestion, type QuestionKind } from '../../shared/textHeuristics';
 
 export { isLikelyQuestion, classifyQuestion };
@@ -230,13 +231,22 @@ export function buildVisionMessages(
   question: string,
   imageDataUrl: string,
   background?: string,
+  screenshotMode: ScreenshotMode = 'general',
 ): ChatMessage[] {
   const bg = (background ?? '').trim();
-  const sys =
-    '你是会议助手。用户发来一张屏幕截图（通常是对方共享的 PPT/文档或一道题目）。用中文简明回答用户关于截图的问题；若是提问/题目，给出用户可以直接说的回答要点或解题思路。' +
-    (bg
-      ? `\n\n===== 本人资料与知识库（作答时优先采用） =====\n${bg.slice(0, MAX_BACKGROUND_CHARS)}\n===== 资料结束 =====`
-      : '');
+  const codingTest = screenshotMode === 'coding-test';
+  const sys = codingTest
+    ? [
+        '你是编程测试题助手。根据截图中可见的题目和用户补充的问题作答，解释使用中文。',
+        '先识别题意、输入输出、约束和样例。截图模糊、内容不完整或没有编程题时，明确指出可见内容和必要假设，不要编造题目条件。',
+        '默认给出完整解法：核心思路、正确性依据、可直接提交的代码、时间复杂度、空间复杂度，以及关键边界情况；用户明确要求其他回答范围时，按用户的问题作答。',
+        '默认使用 Python 3；如果题目或用户明确指定其他语言，就使用指定语言。按照题目要求选择函数签名或标准输入输出形式。',
+        '代码保留缩进，不要声称已经运行或通过测试。',
+      ].join('\n')
+    : '你是会议助手。用户发来一张屏幕截图（通常是对方共享的 PPT/文档或一道题目）。用中文简明回答用户关于截图的问题；若是提问/题目，给出用户可以直接说的回答要点或解题思路。' +
+      (bg
+        ? `\n\n===== 本人资料与知识库（作答时优先采用） =====\n${bg.slice(0, MAX_BACKGROUND_CHARS)}\n===== 资料结束 =====`
+        : '');
   return [
     {
       role: 'system',
@@ -246,7 +256,9 @@ export function buildVisionMessages(
       role: 'user',
       content: [
         { type: 'image_url', image_url: { url: imageDataUrl } },
-        { type: 'text', text: question.trim() || '解读这页内容的要点，并给出我应该怎么回应的建议。' },
+        { type: 'text', text: question.trim() || (codingTest
+          ? '请解答截图中的编程题。'
+          : '解读这页内容的要点，并给出我应该怎么回应的建议。') },
       ],
     },
   ];

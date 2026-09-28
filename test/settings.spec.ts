@@ -74,6 +74,8 @@ describe('SettingsStore', () => {
     expect(s.data.llm.model).toBe('deepseek-chat');
     expect(s.data.llm.answerLang).toBe('chinese');
     expect(s.data.ui.stealth).toBe(true);
+    expect(s.data.ui.screenshotMode).toBe('general');
+    expect(s.getPublic().ui.screenshotMode).toBe('general');
     // v2: a brand new profile has never seen the wizard
     expect(s.data.version).toBe(2);
     expect(s.data.onboarding).toEqual({ schemaVersion: 1, completed: false });
@@ -90,11 +92,13 @@ describe('SettingsStore', () => {
 
   it('round-trips a patch to disk', () => {
     const s1 = new SettingsStore(file, fakeCipher);
-    s1.applyPatch({ asr: { language: 'chinese' }, ui: { hotkeyToggle: 'Alt+X' } });
+    s1.applyPatch({ asr: { language: 'chinese' }, ui: { hotkeyToggle: 'Alt+X', screenshotMode: 'coding-test' } });
 
     const s2 = new SettingsStore(file, fakeCipher);
     expect(s2.data.asr.language).toBe('chinese');
     expect(s2.data.ui.hotkeyToggle).toBe('Alt+X');
+    expect(s2.data.ui.screenshotMode).toBe('coding-test');
+    expect(s2.getPublic().ui.screenshotMode).toBe('coding-test');
     // untouched sections keep defaults
     expect(s2.data.llm.baseUrl).toBe('https://api.deepseek.com/v1');
   });
@@ -221,7 +225,17 @@ describe('SettingsStore', () => {
     const s = new SettingsStore(file, fakeCipher);
     expect(s.data.llm.model).toBe('custom-model');
     expect(s.data.ui.hotkeyToggle).toBe(process.platform === 'darwin' ? 'Command+B' : 'Control+B');
+    expect(s.data.ui.screenshotMode).toBe('general');
     expect(s.data.asr.language).toBe('auto');
+  });
+
+  it('loads a pre-mode v2 profile with the general screenshot mode', () => {
+    const { screenshotMode: _mode, ...oldUi } = defaultSettings().ui;
+    writeFileSync(file, JSON.stringify({ ...defaultSettings(), ui: oldUi }), 'utf8');
+    const loaded = new SettingsStore(file, fakeCipher);
+    expect(loaded.migratedFromV1).toBe(false);
+    expect(loaded.data.ui.screenshotMode).toBe('general');
+    expect(loaded.getPublic().ui.screenshotMode).toBe('general');
   });
 
   it('partial patch does not clobber sibling fields', () => {
@@ -297,7 +311,7 @@ describe('migrateSettingsV1ToV2 (pure)', () => {
     // Phase 4 added two ui fields. Everything the user had configured survives
     // untouched; the new ones arrive with their OFF defaults, so upgrading can
     // never silently register an existing profile for auto-start.
-    expect(v2.ui).toEqual({ ...V1_FILE.ui, autoLaunch: false, trayNoticeShown: false });
+    expect(v2.ui).toEqual({ ...V1_FILE.ui, screenshotMode: 'general', autoLaunch: false, trayNoticeShown: false });
     expect(v2.audio).toEqual(V1_FILE.audio);
   });
 

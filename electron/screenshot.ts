@@ -8,6 +8,24 @@ type CaptureSources = (options: {
 
 export class ScreenCaptureError extends Error {}
 
+/** Keep the assistant hidden for the whole capture or region-selection flow. */
+export async function withCaptureWindowHidden<T>(
+  window: CaptureWindow | undefined,
+  action: () => Promise<T>,
+): Promise<T> {
+  const restore = window && !window.isDestroyed() && window.isVisible();
+  try {
+    if (restore) {
+      window.hide();
+      // Give the compositor and any app-owned popups time to disappear.
+      await new Promise((resolve) => setTimeout(resolve, 200));
+    }
+    return await action();
+  } finally {
+    if (restore && !window.isDestroyed()) window.showInactive();
+  }
+}
+
 async function waitForCapture(pending: Promise<DesktopCapturerSource[]>, signal?: AbortSignal) {
   let timer: ReturnType<typeof setTimeout> | undefined;
   let onAbort: (() => void) | undefined;
@@ -37,13 +55,7 @@ export async function captureDisplayScreenshot({
   signal?: AbortSignal;
 }): Promise<string> {
   signal?.throwIfAborted();
-  const restore = window && !window.isDestroyed() && window.isVisible();
-  try {
-    if (restore) {
-      window.hide();
-      // Give the desktop compositor time to remove the assistant window.
-      await new Promise((resolve) => setTimeout(resolve, 200));
-    }
+  return withCaptureWindowHidden(window, async () => {
     signal?.throwIfAborted();
     const sources = await waitForCapture(getSources({
       types: ['screen'],
@@ -60,7 +72,5 @@ export async function captureDisplayScreenshot({
       throw new ScreenCaptureError('The selected display could not be captured.');
     }
     return source.thumbnail.toDataURL();
-  } finally {
-    if (restore && !window.isDestroyed()) window.showInactive();
-  }
+  });
 }

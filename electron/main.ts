@@ -39,7 +39,7 @@ import { AppTray, trayIconPath } from './tray';
 import { isRendererCommand, type TrayCommand, type TrayMenuState } from '../shared/trayMenu';
 import { KnowledgeStore } from './knowledge';
 import { SessionStore } from './sessions';
-import { captureDisplayScreenshot, ScreenCaptureError } from './screenshot';
+import { captureDisplayScreenshot, ScreenCaptureError, withCaptureWindowHidden } from './screenshot';
 import { DOC_EXTENSIONS, extractDocText } from './docparse';
 import { basename } from 'path';
 import { chatOnce, type ChatResult } from './llm/adapter';
@@ -57,7 +57,7 @@ import {
   buildVisionMessages,
   clampMemo,
 } from './llm/prompts';
-import type { AppInfo, PublicSettings, UiLang } from '../shared/protocol';
+import type { AppInfo, PublicSettings, ScreenshotMode, UiLang } from '../shared/protocol';
 import {
   IPC,
   type AsrEvent,
@@ -129,6 +129,7 @@ function bootstrap(): void {
   /** set by before-quit so window handlers stop prompting mid-shutdown */
   let quitting = false;
   let screenCaptureInProgress = false;
+  let nativeFileDialogsOpen = 0;
   /** an ASR-affecting settings patch arrived while the wizard owned the flow */
   let pendingAsrRestart = false;
   /** renderer capture lifecycle; the tray menu and the diagnostics report read it */
@@ -860,11 +861,12 @@ function bootstrap(): void {
     });
 
     ipcMain.handle(IPC.knowledgeImport, async () => {
+      nativeFileDialogsOpen++;
       const r = await dialog.showOpenDialog({
         title: T().kbImportTitle,
         filters: [{ name: 'Markdown/Text', extensions: ['md', 'markdown', 'txt'] }],
         properties: ['openFile'],
-      });
+      }).finally(() => { nativeFileDialogsOpen--; });
       if (!r.canceled && r.filePaths[0]) {
         try {
           knowledge.setFromText(readFileSync(r.filePaths[0], 'utf8'));
@@ -879,11 +881,12 @@ function bootstrap(): void {
       return { chars: knowledge.chars };
     });
     ipcMain.handle(IPC.knowledgePick, async (_e, slot: 'resume' | 'jd' = 'resume') => {
+      nativeFileDialogsOpen++;
       const r = await dialog.showOpenDialog({
         title: slot === 'jd' ? T().pickJdTitle : T().pickResumeTitle,
         filters: [{ name: T().docFilter, extensions: [...DOC_EXTENSIONS] }],
         properties: ['openFile'],
-      });
+      }).finally(() => { nativeFileDialogsOpen--; });
       if (r.canceled || !r.filePaths[0]) return null;
       try {
         // deterministic parse (mammoth / pdf-parse) — no LLM in the loop;
@@ -899,9 +902,9 @@ function bootstrap(): void {
     ipcMain.on(IPC.sessionsSave, (_e, data) => sessionStore.save(data));
 
     // ---- region screenshot: capture full screen, let the user drag a region
-    // on a STEALTH overlay that shows the capture as its (opaque) background —
-    // avoids the transparent-window black-screen bug and is excluded from
-    // recording via content protection. Returns the cropped image dataURL. ----
+    // on a selection overlay that shows the capture as its (opaque) background.
+    // Content protection is best-effort; ScreenCaptureKit may still show it
+    // to a third-party live screen share. Returns the cropped image dataURL. ----
     let regionResolve: ((r: { x: number; y: number; width: number; height: number } | null) => void) | null = null;
     let pendingRegionImage: string | null = null;
     let regionWin: BrowserWindow | null = null;
@@ -921,62 +924,71 @@ function bootstrap(): void {
     });
 
     ipcMain.handle(IPC.regionPick, async () => {
-      const disp = screen.getPrimaryDisplay();
-      const sf = disp.scaleFactor;
-      const w = Math.round(disp.size.width * sf);
-      const h = Math.round(disp.size.height * sf);
-      const sources = await desktopCapturer.getSources({ types: ['screen'], thumbnailSize: { width: w, height: h } });
-      const src = sources.find((s) => s.display_id === String(disp.id)) ?? sources[0];
-      if (!src) return null;
-      const full = src.thumbnail;
-      pendingRegionImage = full.toDataURL();
-
-      const rect = await new Promise<{ x: number; y: number; width: number; height: number } | null>((resolve) => {
-        regionResolve = resolve;
-        const b = disp.bounds;
-        const ov = new BrowserWindow({
-          x: b.x,
-          y: b.y,
-          width: b.width,
-          height: b.height,
-          frame: false,
-          alwaysOnTop: true,
-          skipTaskbar: true,
-          hasShadow: false,
-          resizable: false,
-          movable: false,
-          fullscreenable: false,
-          enableLargerThanScreen: true,
-          webPreferences: { preload: join(__dirname, '../preload/index.js'), contextIsolation: true },
-        });
-        regionWin = ov;
-        ov.setContentProtection(true); // selection overlay invisible to recording
-        ov.setAlwaysOnTop(true, 'screen-saver');
-        ov.on('closed', () => {
-          if (regionResolve) {
-            const f = regionResolve;
-            regionResolve = null;
-            f(null);
-          }
-          regionWin = null;
-        });
-        void ov.loadURL('data:text/html;charset=utf-8,' + encodeURIComponent(regionOverlayHtml(T().regionTip)));
-      });
-
-      const img = pendingRegionImage;
-      pendingRegionImage = null;
-      if (!rect || rect.width < 4 || rect.height < 4 || !img) return null;
+      if (screenCaptureInProgress || nativeFileDialogsOpen || regionWin) return null;
+      screenCaptureInProgress = true;
       try {
-        const cropped = full.crop({
-          x: Math.round(rect.x * sf),
-          y: Math.round(rect.y * sf),
-          width: Math.round(rect.width * sf),
-          height: Math.round(rect.height * sf),
+        return await withCaptureWindowHidden(win ?? undefined, async () => {
+          const disp = screen.getDisplayNearestPoint(screen.getCursorScreenPoint());
+          const sf = disp.scaleFactor;
+          const w = Math.round(disp.size.width * sf);
+          const h = Math.round(disp.size.height * sf);
+          const sources = await desktopCapturer.getSources({ types: ['screen'], thumbnailSize: { width: w, height: h } });
+          const src = sources.find((s) => s.display_id === String(disp.id));
+          if (!src || src.thumbnail.isEmpty()) return null;
+          const full = src.thumbnail;
+          pendingRegionImage = full.toDataURL();
+
+          const rect = await new Promise<{ x: number; y: number; width: number; height: number } | null>((resolve) => {
+            regionResolve = resolve;
+            const b = disp.bounds;
+            const ov = new BrowserWindow({
+              x: b.x,
+              y: b.y,
+              width: b.width,
+              height: b.height,
+              frame: false,
+              alwaysOnTop: true,
+              skipTaskbar: true,
+              hasShadow: false,
+              resizable: false,
+              movable: false,
+              fullscreenable: false,
+              enableLargerThanScreen: true,
+              webPreferences: { preload: join(__dirname, '../preload/index.js'), contextIsolation: true },
+            });
+            regionWin = ov;
+            ov.setContentProtection(true);
+            ov.setAlwaysOnTop(true, 'screen-saver');
+            ov.on('closed', () => {
+              if (regionResolve) {
+                const f = regionResolve;
+                regionResolve = null;
+                f(null);
+              }
+              regionWin = null;
+            });
+            void ov.loadURL('data:text/html;charset=utf-8,' + encodeURIComponent(regionOverlayHtml(T().regionTip)));
+          });
+
+          const img = pendingRegionImage;
+          pendingRegionImage = null;
+          if (!rect || rect.width < 4 || rect.height < 4 || !img) return null;
+          try {
+            const cropped = full.crop({
+              x: Math.round(rect.x * sf),
+              y: Math.round(rect.y * sf),
+              width: Math.round(rect.width * sf),
+              height: Math.round(rect.height * sf),
+            });
+            return cropped.toDataURL();
+          } catch (e) {
+            console.error('[region] crop failed:', (e as Error).message);
+            return null;
+          }
         });
-        return cropped.toDataURL();
-      } catch (e) {
-        console.error('[region] crop failed:', (e as Error).message);
-        return null;
+      } finally {
+        pendingRegionImage = null;
+        screenCaptureInProgress = false;
       }
     });
     ipcMain.handle(IPC.stealthSet, (_e, on: boolean) => {
@@ -1105,6 +1117,7 @@ function bootstrap(): void {
 
     async function captureCurrentScreen(signal: AbortSignal): Promise<string> {
       if (screenCaptureInProgress) throw new Error(T().screenshotBusy);
+      if (nativeFileDialogsOpen) throw new Error(T().screenshotDialogOpen);
       // Resolve the display before hiding the window or awaiting capture.
       const display = screen.getDisplayNearestPoint(screen.getCursorScreenPoint());
       screenCaptureInProgress = true;
@@ -1125,7 +1138,7 @@ function bootstrap(): void {
     // -> vision model. Temporarily hide the assistant during full capture. ----
     ipcMain.on(
       IPC.shotAsk,
-      (_e, payload: { requestId: string; question: string; background?: string; imageDataUrl?: string }) => {
+      (_e, payload: { requestId: string; question: string; background?: string; imageDataUrl?: string; screenshotMode?: ScreenshotMode }) => {
       const sendEv = (ev: LlmEvent) => win?.webContents.send(IPC.llmEvent, ev);
       const vision = settings.data.vision;
       const apiKey = settings.getVisionApiKey();
@@ -1139,13 +1152,15 @@ function bootstrap(): void {
       }
       const ac = new AbortController();
       llmControllers.set(payload.requestId, ac);
+      const screenshotMode: ScreenshotMode = payload.screenshotMode === 'coding-test' ? 'coding-test' : 'general';
       // region mode provides a pre-cropped image; else capture the full screen
       const imgP = payload.imageDataUrl
         ? Promise.resolve(payload.imageDataUrl)
         : captureCurrentScreen(ac.signal);
       imgP
         .then((dataUrl) => {
-          const messages = buildVisionMessages(payload.question, dataUrl, payload.background || knowledge.text);
+          const background = screenshotMode === 'coding-test' ? undefined : payload.background || knowledge.text;
+          const messages = buildVisionMessages(payload.question, dataUrl, background, screenshotMode);
           if (textLlm.usesCodex) {
             return textLlm.stream(messages, {
               onDelta: (text) => sendEv({ requestId: payload.requestId, kind: 'delta', text }),

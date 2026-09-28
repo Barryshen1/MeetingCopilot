@@ -6,6 +6,7 @@ import type {
   KbSlot,
   LlmAskPayload,
   PublicSettings,
+  ScreenshotMode,
   StoredSession,
 } from '../shared/protocol';
 import {
@@ -27,6 +28,7 @@ import { DiagnosticsPanel } from './components/DiagnosticsPanel';
 import { HelpPanel } from './components/HelpPanel';
 import { StatusBar } from './components/StatusBar';
 import { AnswerSession, type AnswerTurn } from './components/AnswerSession';
+import { InWindowSelect } from './components/InWindowSelect';
 import { I18nProvider, getDict, type Dict } from './i18n';
 
 export interface AsrUiState {
@@ -236,18 +238,25 @@ export function App() {
     (question: string, imageDataUrl?: string) => {
       const sid = currentIdRef.current;
       if (!sid) return;
+      // Read at request time: the global screenshot hotkey keeps this callback
+      // registered while the user changes the screenshot mode.
+      const screenshotMode: ScreenshotMode = settingsRef.current?.ui.screenshotMode === 'coding-test'
+        ? 'coding-test'
+        : 'general';
       const requestId = uid('shot');
       appendTurn(sid, {
         id: requestId,
         kind: 'vision',
-        label: question || tRef.current.app.readShot,
+        label: question || (screenshotMode === 'coding-test' ? tRef.current.app.readCodingShot : tRef.current.app.readShot),
         text: '',
         status: 'streaming',
       });
-      maybeTitle(sid, question || tRef.current.app.shotQuestion);
+      maybeTitle(sid, question || (screenshotMode === 'coding-test' ? tRef.current.app.codingShotQuestion : tRef.current.app.shotQuestion));
       const m = currentMaterial();
-      const background = [m.resume, m.jd].filter(Boolean).join('\n\n') || undefined;
-      window.mc.shotAsk({ requestId, question, background, imageDataUrl });
+      const background = screenshotMode === 'general'
+        ? [m.resume, m.jd].filter(Boolean).join('\n\n') || undefined
+        : undefined;
+      window.mc.shotAsk({ requestId, question, background, imageDataUrl, screenshotMode });
     },
     [appendTurn, currentMaterial, maybeTitle],
   );
@@ -506,6 +515,23 @@ export function App() {
     setSettings({ ...settings, ui: { ...settings.ui, stealth: on } });
   }, [settings]);
 
+  const updateScreenshotMode = useCallback(async (screenshotMode: ScreenshotMode) => {
+    const previous = settingsRef.current;
+    if (!previous) return;
+    const next = { ...previous, ui: { ...previous.ui, screenshotMode } };
+    settingsRef.current = next;
+    setSettings(next);
+    try {
+      const saved = await window.mc.setSettings({ ui: { screenshotMode } });
+      settingsRef.current = saved;
+      setSettings(saved);
+    } catch (error) {
+      settingsRef.current = previous;
+      setSettings(previous);
+      console.error('[ui] screenshot mode save failed:', error);
+    }
+  }, []);
+
   const toggleAnswerLang = useCallback(async () => {
     if (!settings) return;
     const next: AnswerLang = settings.llm.answerLang === 'chinese' ? 'english' : 'chinese';
@@ -738,19 +764,16 @@ export function App() {
             {capturing ? t.titlebar.stop : t.titlebar.start}
           </button>
           {captureKindForPlatform(window.mc.platform) === 'input' && mics.length > 0 && (
-            <select
+            <InWindowSelect
               className="mic-select"
               value={settings?.audio.themDeviceId ?? ''}
-              onChange={(e) => void selectThemInput(e.target.value)}
-              title={t.titlebar.themDeviceTitle}
-            >
-              <option value="">{t.titlebar.themDeviceDefault}</option>
-              {mics.map((m) => (
-                <option key={m.deviceId} value={m.deviceId}>
-                  {(m.label || t.titlebar.themDeviceDefault).slice(0, 14)}
-                </option>
-              ))}
-            </select>
+              onChange={(value) => void selectThemInput(value)}
+              ariaLabel={t.titlebar.themDeviceTitle}
+              options={[
+                { value: '', label: t.titlebar.themDeviceDefault },
+                ...mics.map((m) => ({ value: m.deviceId, label: (m.label || t.titlebar.themDeviceDefault).slice(0, 14) })),
+              ]}
+            />
           )}
           <button
             className={continuous ? 'btn btn-on' : 'btn'}
@@ -777,19 +800,16 @@ export function App() {
             {micActive ? t.titlebar.micOn : t.titlebar.micOff}
           </button>
           {micActive && mics.length > 0 && (
-            <select
+            <InWindowSelect
               className="mic-select"
               value={settings?.audio.micDeviceId ?? ''}
-              onChange={(e) => void selectMic(e.target.value)}
-              title={t.titlebar.micDeviceTitle}
-            >
-              <option value="">{t.titlebar.micDefault}</option>
-              {mics.map((m) => (
-                <option key={m.deviceId} value={m.deviceId}>
-                  {(m.label || t.titlebar.micDefault).slice(0, 10)}
-                </option>
-              ))}
-            </select>
+              onChange={(value) => void selectMic(value)}
+              ariaLabel={t.titlebar.micDeviceTitle}
+              options={[
+                { value: '', label: t.titlebar.micDefault },
+                ...mics.map((m) => ({ value: m.deviceId, label: (m.label || t.titlebar.micDefault).slice(0, 10) })),
+              ]}
+            />
           )}
           <button
             className={settings?.ui.stealth ? 'btn btn-on' : 'btn'}
@@ -922,6 +942,8 @@ export function App() {
           onClear={() => patchSession(currentIdRef.current, (s) => ({ ...s, turns: [] }))}
           onFreeAsk={(q) => askLlm('free', q)}
           onShotAsk={askShot}
+          screenshotMode={settings?.ui.screenshotMode ?? 'general'}
+          onScreenshotModeChange={(mode) => void updateScreenshotMode(mode)}
         />
       </div>
 
