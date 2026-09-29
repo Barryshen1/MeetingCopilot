@@ -6,7 +6,7 @@
 
 把发送人提供的 ZIP 解压后，将解压出的本文件所在文件夹交给你自己的 Codex，并把下面这段话发给它：
 
-> 请阅读同文件夹的 `SETUP_FOR_CODEX.md`，在**我的 Mac** 上安装并配置 MeetingCopilot。先核对机器、安装包和现有 MeetingCopilot 数据，再安装应用；用**我的** Codex 登录配置 AI 回答，验证文字与安全测试画面的截图问答。接着指导我选择并配置语音转录；如我要转录电脑里会议或视频的声音，再设置 BlackHole 音频路由并做实测。请保留我已有的应用数据，不导入发送人的账号、密钥、会话或资料。需要我输入密码、登录、创建 API Key 或授予 macOS 权限时，让我在官方网站或系统窗口自行操作，不要让我把凭据发到聊天。最后报告每一项实际验证结果及未完成的步骤。
+> 请阅读同文件夹的 `SETUP_FOR_CODEX.md`，在**我的 Mac** 上安装并配置 MeetingCopilot。先核对机器、安装包和现有 MeetingCopilot 数据，再安装应用；用**我的** Codex 登录配置 AI 回答，验证文字与安全测试画面的截图问答。配置阿里云新加坡 Qwen-Audio 3.1 流式语音转录时，先提醒我向发送人索取他愿意共享的通用 API Key 和对应工作空间的 WebSocket 地址，再指导我在本机 MeetingCopilot 设置中填写；不要让我把 Key 发到 Codex 聊天。如我要转录电脑里会议或视频的声音，再设置 BlackHole 音频路由并做实测。请保留我已有的应用数据，不导入发送人的 Codex 账号、会话或资料。需要我输入密码、登录或授予 macOS 权限时，让我在官方网站或系统窗口自行操作。最后报告每一项实际验证结果及未完成的步骤。
 
 下面是 Codex 应按顺序执行的步骤。**“已安装”“已登录”“已授权”都要在这台 Mac 上验证，不能根据发送人的电脑推断。**
 
@@ -51,16 +51,16 @@ Codex CLI 只负责 AI 回答和图片理解，**不会把声音转成文字**�
 
 | 方案 | 要准备什么 | 操作 |
 |---|---|---|
-| 云端实时转录 | 本人创建的服务商 API Key；音频会发给该服务商 | 选“云端流式”，在服务商预设中选模型，填写同地域 Key，保存并测试 |
+| 云端实时转录 | 发送人另行提供的阿里云新加坡 API Key 和对应工作空间地址；音频会发到其阿里云服务 | 选“云端流式”，填写同地域 Key 和地址，保存并测试 |
 | 本地 FunASR | Python 环境、依赖与模型下载；安装包不代装 | 按[项目的 macOS 本地 ASR 指南](https://github.com/Barryshen1/MeetingCopilot/blob/main/docs/macos/SETUP.zh-CN.md)配置解释器与模型，再在设置中指定 Python 路径 |
 
 若选择本分支支持的**阿里云新加坡 Qwen-Audio 3.1 流式转录**：
 
-1. 本人在[百炼国际站新加坡模型页面](https://modelstudio.console.alibabacloud.com/ap-southeast-1/model/market/detail/qwen-audio-3.1-asr-flash-streaming?serviceSite=international)开通模型，在同地域创建**自己的通用 API Key**。从该页面 API 示例复制该工作空间专属的 `wss://…ap-southeast-1.maas.aliyuncs.com/api-ws/v1/inference` 地址。不要使用发送人的 Key、工作空间地址或 Token Plan 专用 Key。
-2. MeetingCopilot 选择“云端流式” → “阿里云新加坡 Qwen-Audio 3.1 流式”，填入**自己**的工作空间 WebSocket 地址和 Key，设转录语言“自动”，保存。
-3. 重新打开设置并点该 ASR 的“测试连接”；它会发送一段很短的应用内合成测试音频，可能消耗服务额度。确认测试成功；若出现 `REGION_MISMATCH` 或 `PERMISSION_DENIED`，检查 Key、模型与地址是否在同一地域及工作空间。费用和免费额度由本人在服务商控制台确认。
+1. **Codex 先提醒收件人向发送人索取**他愿意共享的阿里云新加坡 Qwen-Audio 3.1 流式 ASR 通用 API Key，以及与这把 Key 对应的工作空间 WebSocket 地址（格式如 `wss://…ap-southeast-1.maas.aliyuncs.com/api-ws/v1/inference`）。发送人通过双方信任的私密渠道提供；安装包和本文件不包含 Key。若尚未收到，Codex 应将 ASR 标为“待配置”，继续完成其他设置。
+2. 收件人在 MeetingCopilot 选择“云端流式” → “阿里云新加坡 Qwen-Audio 3.1 流式”，在应用设置框中填写收到的 WebSocket 地址和 Key，设转录语言“自动”，保存。Codex 不要要求收件人将 Key 粘贴到聊天、命令行或安装文件，也不要读取、回显或记录 Key。
+3. 重新打开设置并点该 ASR 的“测试连接”；它会发送一段很短的应用内合成测试音频，可能消耗发送人的服务额度。确认测试成功；若出现 `REGION_MISMATCH` 或 `PERMISSION_DENIED`，请发送人核对 Key、模型与地址是否在同一地域及工作空间。费用和免费额度由发送人在服务商控制台确认。
 
-保存 Key 时如果 macOS 弹出“MeetingCopilot Safe Storage”钥匙串授权，由本人在系统窗口判断并操作。**Key 只输入 MeetingCopilot 的设置框，不贴进 Codex 聊天或交付包。**
+保存 Key 时如果 macOS 弹出“MeetingCopilot Safe Storage”钥匙串授权，由本人在系统窗口判断并操作。若应用提示密钥只能以弱加密方式保存，先暂停保存并告知发送人。**Key 只输入 MeetingCopilot 的设置框，不贴进 Codex 聊天或交付包。** 收件人使用发送人的阿里云工作空间与配额；转录音频会发送到该服务。发送人可为这台 Mac 单独创建一把 Key，方便日后停用。
 
 ## 5. 如需转录电脑里的声音，配置 BlackHole
 
