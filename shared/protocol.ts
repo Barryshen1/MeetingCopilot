@@ -493,9 +493,9 @@ export interface SessionsFile {
 
 export interface LlmAskPayload {
   requestId: string;
-  mode: 'segment' | 'continuous' | 'free' | 'translate' | 'oeai';
-  /** OEAI practice: the examiner question + MY answer to rate (mode === 'oeai') */
-  oeai?: { question: string; answer: string };
+  mode: 'segment' | 'continuous' | 'free' | 'translate';
+  /** Answer in the OEAI oral-interview scenario (never rate a past answer). */
+  oeaiMode?: boolean;
   /** the sentence to answer (segment) or text to translate (translate) */
   question?: string;
   /** free-form question (mode === 'free') */

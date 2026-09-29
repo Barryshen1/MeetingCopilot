@@ -25,8 +25,6 @@ export function TranscriptPanel({
   onTranslate,
   onClear,
   oeai = false,
-  onEvaluate,
-  onEvaluateSelection,
 }: {
   segments: TranscriptSegment[];
   partials?: { them?: string; me?: string };
@@ -36,10 +34,8 @@ export function TranscriptPanel({
   onAsk: (text: string) => void;
   onTranslate: (seg: TranscriptSegment) => void;
   onClear: () => void;
-  /** OEAI practice: my lines get 评估 (rate my answer); nothing answers the examiner */
+  /** OEAI oral-interview answer mode changes the hint, not answer controls. */
   oeai?: boolean;
-  onEvaluate?: (seg: TranscriptSegment) => void;
-  onEvaluateSelection?: (text: string) => void;
 }) {
   const t = useT();
   const boxRef = useRef<HTMLDivElement>(null);
@@ -72,10 +68,7 @@ export function TranscriptPanel({
   };
 
   const answerSel = () => {
-    if (sel) {
-      if (oeai) onEvaluateSelection?.(sel.text);
-      else onAsk(sel.text);
-    }
+    if (sel) onAsk(sel.text);
     window.getSelection()?.removeAllRanges();
     setSel(null);
   };
@@ -129,20 +122,7 @@ export function TranscriptPanel({
                   >
                     {t.transcript.translateBtn}
                   </button>
-                  {oeai && me && (
-                    <button
-                      className="bubble-ask"
-                      disabled={!answersReady}
-                      title={answersReady ? t.transcript.evaluateTitle : answersHint}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onEvaluate?.(s);
-                      }}
-                    >
-                      {t.transcript.evaluateBtn}
-                    </button>
-                  )}
-                  {!oeai && !me && (
+                  {!me && (
                     <button
                       className="bubble-ask"
                       disabled={!answersReady}
@@ -196,7 +176,7 @@ export function TranscriptPanel({
             title={answersReady ? undefined : answersHint}
             onClick={answerSel}
           >
-            {oeai ? t.transcript.evaluateSelection : t.transcript.answerSelection}
+            {t.transcript.answerSelection}
           </button>
         </div>
       )}

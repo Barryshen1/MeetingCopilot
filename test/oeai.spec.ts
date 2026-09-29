@@ -1,80 +1,114 @@
 import { describe, expect, it } from 'vitest';
-import { OEAI_MAX_PART_CHARS, oeaiPairFor, type OeaiLine } from '../shared/oeai';
-import { buildAnswerMessages } from '../electron/llm/prompts';
+import { buildAnswerMessages, buildStablePrefix } from '../electron/llm/prompts';
+import { isLikelyOeaiPrompt, isLikelyQuestion } from '../shared/textHeuristics';
 
-const lines: OeaiLine[] = [
-  { id: 1, speaker: 'them', text: 'Hi, how is your semester going?' },
-  { id: 2, speaker: 'me', text: 'It is going well.' },
-  { id: 3, speaker: 'them', text: 'Can you define a hash table' },
-  { id: 4, speaker: 'them', text: 'as you would explain it to undergraduates?' },
-  { id: 5, speaker: 'me', text: 'Sure. A hash table stores key value pairs,' },
-  { id: 6, speaker: 'me', text: 'and it uses a hash function to find the bucket.' },
-  { id: 7, speaker: 'them', text: 'Thanks.' },
-];
-
-describe('oeaiPairFor', () => {
-  it('pairs my whole answer run with the examiner run right before it', () => {
-    const want = {
-      question: 'Can you define a hash table as you would explain it to undergraduates?',
-      answer: 'Sure. A hash table stores key value pairs, and it uses a hash function to find the bucket.',
-    };
-    expect(oeaiPairFor(lines, 5)).toEqual(want);
-    expect(oeaiPairFor(lines, 6)).toEqual(want); // clicking any of my lines works
-  });
-
-  it('only rates MY lines, and unknown ids are ignored', () => {
-    expect(oeaiPairFor(lines, 3)).toBeNull();
-    expect(oeaiPairFor(lines, 99)).toBeNull();
-  });
-
-  it('has an empty question when nothing from the examiner was transcribed (shared mic)', () => {
-    const shared: OeaiLine[] = [{ id: 1, speaker: 'me', text: 'Define recursion. Recursion is when a function calls itself.' }];
-    expect(oeaiPairFor(shared, 1)).toEqual({ question: '', answer: shared[0].text });
-  });
-
-  it('treats lines without a speaker as the examiner and bounds each part', () => {
-    const long = 'x'.repeat(OEAI_MAX_PART_CHARS + 500);
-    const pair = oeaiPairFor([{ id: 1, text: 'What is Big-O?' }, { id: 2, speaker: 'me', text: long }], 2);
-    expect(pair?.question).toBe('What is Big-O?');
-    expect(pair?.answer.length).toBe(OEAI_MAX_PART_CHARS);
-  });
-});
-
-describe('OEAI scenario prompt', () => {
-  const pair = { question: 'Can you define a hash table?', answer: 'A hash table stores key value pairs.' };
-  const msgs = buildAnswerMessages({
-    mode: 'oeai',
-    oeai: pair,
-    recentTranscript: ['unrelated meeting line'],
-    resume: 'SECRET RESUME',
-    history: [{ role: 'user', content: 'old question' }, { role: 'assistant', content: 'old answer' }],
-  });
-  const system = String(msgs[0].content);
-  const user = String(msgs[msgs.length - 1].content);
-
-  it('uses the OEAI rater scenario, not the interview teleprompter', () => {
-    expect(msgs[0].role).toBe('system');
-    expect(system).toContain('OEAI');
-    expect(system).toContain('Term Definitions');
-    for (const c of ['Fluency', 'Pronunciation', 'Language Control', 'Coherence', 'Comprehension']) {
-      expect(system).toContain(c);
+describe('OEAI oral-answer mode', () => {
+  it('auto-triggers on short examiner instructions without punctuation', () => {
+    for (const prompt of ['Define recursion.', 'Compare SQL and NoSQL.', 'Give an example.', '请定义递归', '比较 SQL 和 NoSQL']) {
+      expect(isLikelyOeaiPrompt(prompt)).toBe(true);
     }
-    expect(system).not.toContain('提词器');
+    expect(isLikelyQuestion('Define recursion.')).toBe(false);
+    for (const remark of ['Okay.', 'Thanks.', 'I will define recursion.']) {
+      expect(isLikelyOeaiPrompt(remark)).toBe(false);
+    }
   });
 
-  it('rates the answer I gave and refuses to answer before I have', () => {
-    expect(user).toContain(pair.question);
-    expect(user).toContain(pair.answer);
-    expect(system).toContain('如果【我的回答】为空');
-    const empty = buildAnswerMessages({ mode: 'oeai', oeai: { question: pair.question, answer: '  ' }, recentTranscript: [] });
-    expect(String(empty[1].content)).toContain('（空）');
+  it('answers an examiner question in the selected language without requesting a score', () => {
+    const msgs = buildAnswerMessages({
+      mode: 'segment',
+      oeaiMode: true,
+      question: 'Can you define a hash table for undergraduates?',
+      recentTranscript: ['Can you define a hash table for undergraduates?'],
+      answerLang: 'english',
+      resume: 'I taught data structures.',
+    });
+    expect(msgs[0].content).toBe(buildStablePrefix('I taught data structures.', '', 'english', undefined, 'oeai'));
+    expect(msgs[0].content).toContain('【英文】');
+    expect(msgs[0].content).toContain('术语和一般知识可依据通用知识回答');
+    expect(msgs[0].content).not.toContain('回答只能基于此');
+    expect(msgs[1].role).toBe('system');
+    expect(msgs[1].content).toContain('OEAI');
+    expect(msgs[1].content).toContain('Term Definitions');
+    expect(msgs[1].content).toContain('直接写出我接下来可以照着念的回答');
+    expect(msgs[msgs.length - 1].content).toContain('Can you define a hash table for undergraduates?');
+    const fullPrompt = JSON.stringify(msgs);
+    expect(fullPrompt).not.toContain('X/5');
+    expect(fullPrompt).not.toContain('Fluency');
+    expect(fullPrompt).not.toContain('Pronunciation');
+    expect(fullPrompt).not.toContain('【我的回答】');
   });
 
-  it('keeps meeting material, transcript and history out of the evaluation', () => {
-    expect(msgs).toHaveLength(2);
-    const all = msgs.map((m) => String(m.content)).join('\n');
-    expect(all).not.toContain('SECRET RESUME');
-    expect(all).not.toContain('old answer');
-    expect(all).not.toContain('unrelated meeting line');
+  it('keeps automatic language selection tied to the current question', () => {
+    const msgs = buildAnswerMessages({
+      mode: 'continuous',
+      oeaiMode: true,
+      question: 'Why are hash tables useful?',
+      recentTranscript: ['这是早先的中文对话', 'Why are hash tables useful?'],
+      answerLang: 'auto',
+      resume: '中文简历',
+    });
+    expect(msgs[0].content).toContain('本轮明确提问');
+    expect(msgs[1].content).toContain('自动时根据本轮提问');
+    expect(msgs[msgs.length - 1].content).toContain('Why are hash tables useful?');
+  });
+
+  it('uses reference material for personal facts without turning OEAI into a job interview', () => {
+    const msgs = buildAnswerMessages({
+      mode: 'continuous',
+      oeaiMode: true,
+      question: 'Define a hash table.',
+      recentTranscript: ['Define a hash table.'],
+      answerLang: 'english',
+      resume: 'I taught data structures.',
+      jd: 'Software engineer job description',
+    });
+    expect(msgs[0].content).toContain('I taught data structures.');
+    expect(msgs[0].content).toContain('Software engineer job description');
+    expect(msgs[0].content).toContain('口试题未要求时无需贴合岗位');
+    expect(msgs[0].content).not.toContain('回答向它贴合');
+  });
+
+  it('uses the Chinese setting for a continuous answer when chosen', () => {
+    const msgs = buildAnswerMessages({
+      mode: 'continuous',
+      oeaiMode: true,
+      recentTranscript: ['请解释一下你的研究'],
+      answerLang: 'chinese',
+    });
+    expect(msgs[0].content).toContain('用【中文】输出');
+    expect(msgs[1].content).toContain('OEAI');
+    expect(msgs[msgs.length - 1].content).toContain('请解释一下你的研究');
+  });
+
+  it('treats a typed OEAI question as an answer request while ordinary free mode remains free', () => {
+    const oeai = buildAnswerMessages({
+      mode: 'free',
+      oeaiMode: true,
+      freeQuestion: 'What would you say if a student is confused about recursion?',
+      recentTranscript: [],
+      answerLang: 'auto',
+    });
+    expect(oeai[0].content).toContain('OEAI 模拟口试回答助手');
+    expect(oeai[1].content).toContain('OEAI');
+    expect(oeai[oeai.length - 1].content).toContain('What would you say');
+    const ordinary = buildAnswerMessages({
+      mode: 'free',
+      freeQuestion: 'What model are you?',
+      recentTranscript: [],
+      answerLang: 'auto',
+    });
+    expect(ordinary).toEqual([{ role: 'user', content: 'What model are you?' }]);
+  });
+
+  it('keeps translation independent of the OEAI setting', () => {
+    const msgs = buildAnswerMessages({
+      mode: 'translate',
+      oeaiMode: true,
+      question: 'A hash table maps keys to values.',
+      recentTranscript: [],
+      answerLang: 'english',
+    });
+    expect(msgs[0].content).toContain('翻译成【简体中文】');
+    expect(JSON.stringify(msgs)).not.toContain('OEAI');
   });
 });

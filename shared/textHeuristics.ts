@@ -20,6 +20,17 @@ export function isLikelyQuestion(text: string): boolean {
   return t.length >= 40;
 }
 
+/** OEAI examiners often give short commands instead of punctuated questions. */
+const OEAI_IMPERATIVE_EN =
+  /^(?:(?:now|next|okay|ok)\b[, .]*)?(?:please\s+)?(?:define|compare|contrast|discuss|summarize|outline|illustrate|elaborate\s+on|walk\s+me\s+through|give\s+(?:me\s+)?(?:an?\s+)?(?:example|reason)|talk\s+about)\b/i;
+const OEAI_IMPERATIVE_ZH =
+  /^(?:请|请你)?(?:定义|比较|对比|举例|举个例子|解释|说明|谈谈|讨论|概括|描述)/;
+
+export function isLikelyOeaiPrompt(text: string): boolean {
+  const t = text.trim();
+  return isLikelyQuestion(t) || (t.length >= 4 && (OEAI_IMPERATIVE_EN.test(t) || OEAI_IMPERATIVE_ZH.test(t)));
+}
+
 // ---------- question-type hint (prompt v2) ----------
 
 export type QuestionKind = 'behavioral' | 'technical' | 'smalltalk' | 'other';

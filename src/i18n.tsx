@@ -33,7 +33,6 @@ const zh = {
     kbNoText: (name: string) =>
       `「${name}」没有可提取的文本（扫描版 PDF？请换文字版或 .md/.txt）`,
     referenceFileLimit: '每个会话最多添加 20 个其他资料文件。请先移除不需要的文件。',
-    oeaiTurnLabel: (answer: string) => `评估：${answer.slice(0, 40)}`,
   },
   titlebar: {
     start: '▶ 开始',
@@ -47,7 +46,7 @@ const zh = {
     continuous: '持续答',
     continuousTitle: '持续模式：对方提问时自动追加一条回答建议（只在像问题时触发）',
     oeai: 'OEAI',
-    oeaiTitle: 'OEAI 模拟：朋友当考官，你答完后点你回答旁的「评估」，按 OEAI 五项标准估分并给出改进。此模式下不会替你生成回答，「持续答」关闭。',
+    oeaiTitle: 'OEAI 口试答题模式：按考官的问题生成适合直接说出的回答建议；「持续答」可同时开启。回答语言沿用「答:自动/中/EN」设置。',
     vision: '多模态',
     textOnly: '纯文本',
     modelTitle: '回答用的模型：纯文本大模型（快） ⇄ 多模态模型（可截图问答）',
@@ -88,10 +87,7 @@ const zh = {
     langEn: 'EN',
     jumpLatest: '↓ 回到最新',
     answerSelection: '⚡回答选中',
-    oeaiHint: 'OEAI 模拟中：答完后点你回答旁的「评估」',
-    evaluateBtn: '评估',
-    evaluateTitle: '按 OEAI 标准评估这段回答（和考官上一问一起）',
-    evaluateSelection: '⚡评估选中',
+    oeaiHint: 'OEAI 口试场景：开启「持续答」后自动回应考官提问',
   },
   answer: {
     kindTag: {
@@ -519,7 +515,6 @@ const en: Dict = {
     kbNoText: (name: string) =>
       `"${name}" has no extractable text (scanned PDF? Use a text-based file or .md/.txt)`,
     referenceFileLimit: 'Each session supports up to 20 extra reference files. Remove an unused file first.',
-    oeaiTurnLabel: (answer: string) => `Evaluate: ${answer.slice(0, 40)}`,
   },
   titlebar: {
     start: '▶ Start',
@@ -535,7 +530,7 @@ const en: Dict = {
       'Continuous mode: auto-append an answer suggestion whenever the other party asks something question-like',
     oeai: 'OEAI',
     oeaiTitle:
-      'OEAI mock: a friend plays the examiner; after you answer, click “Evaluate” on your answer for an OEAI-style score and fixes. This mode never writes answers for you, and Auto is off.',
+      'OEAI oral-interview mode: suggest spoken answers to examiner questions. Auto can run at the same time; answer language follows A:Auto/ZH/EN.',
     vision: 'Vision',
     textOnly: 'Text',
     modelTitle: 'Answering model: text-only LLM (fast) ⇄ multimodal model (screenshot Q&A)',
@@ -578,10 +573,7 @@ const en: Dict = {
     langEn: 'EN',
     jumpLatest: '↓ Latest',
     answerSelection: '⚡ Answer selection',
-    oeaiHint: 'OEAI mock: after answering, click “Evaluate” on your answer',
-    evaluateBtn: 'Evaluate',
-    evaluateTitle: 'Rate this answer (with the examiner’s previous question) by OEAI criteria',
-    evaluateSelection: '⚡ Evaluate selection',
+    oeaiHint: 'OEAI oral-interview mode: turn on Auto to answer examiner prompts',
   },
   answer: {
     kindTag: {

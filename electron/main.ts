@@ -592,10 +592,10 @@ function bootstrap(): void {
     let keepWarmTimer: NodeJS.Timeout | null = null;
 
     /** same material fallback as llmAsk — prewarm MUST match real requests byte-for-byte */
-    function stablePrefixFor(resume?: string, jd?: string, attachments?: SessionAttachment[]): string {
+    function stablePrefixFor(resume?: string, jd?: string, attachments?: SessionAttachment[], oeaiMode = false): string {
       const hasMaterial = !!(resume || jd || attachments?.length);
       const effResume = resume || (hasMaterial ? '' : knowledge.text);
-      return buildStablePrefix(effResume, jd ?? '', settings.data.llm.answerLang, attachments);
+      return buildStablePrefix(effResume, jd ?? '', settings.data.llm.answerLang, attachments, oeaiMode ? 'oeai' : 'default');
     }
 
     async function doPrewarm(prefix: string, reason: string): Promise<void> {
@@ -620,8 +620,8 @@ function bootstrap(): void {
 
     ipcMain.on(
       IPC.llmPrewarm,
-      (_e, payload: { resume?: string; jd?: string; attachments?: SessionAttachment[]; immediate?: boolean } = {}) => {
-        const prefix = stablePrefixFor(payload.resume, payload.jd, payload.attachments);
+      (_e, payload: { resume?: string; jd?: string; attachments?: SessionAttachment[]; oeaiMode?: boolean; immediate?: boolean } = {}) => {
+        const prefix = stablePrefixFor(payload.resume, payload.jd, payload.attachments, payload.oeaiMode);
         const dirty = prefix !== lastPrefix;
         const cold = Date.now() - lastPrefixActivity >= PREWARM_IDLE_MS;
         if (!dirty && !cold) return;
@@ -1081,7 +1081,7 @@ function bootstrap(): void {
         attachments: isTranslate ? undefined : payload.attachments,
         memo: isTranslate ? undefined : payload.memo,
         background: isTranslate ? undefined : payload.background || (hasMaterial ? undefined : knowledge.text),
-        oeai: payload.mode === 'oeai' ? payload.oeai : undefined,
+        oeaiMode: isTranslate ? false : payload.oeaiMode,
       });
 
       // "answer with multimodal": route through the vision provider (proxy-aware,
@@ -1090,14 +1090,13 @@ function bootstrap(): void {
         !textLlm.usesCodex &&
         settings.data.llm.answerWithVision &&
         payload.mode !== 'translate' &&
-        payload.mode !== 'oeai' &&
         !!settings.data.vision.baseUrl &&
         !!settings.data.vision.model &&
         !!settings.getVisionApiKey();
 
       // a real answer request refreshes the provider-side prefix cache itself
-      if (!isTranslate && !useVision && payload.mode !== 'free' && payload.mode !== 'oeai') {
-        lastPrefix = stablePrefixFor(payload.resume || payload.background, payload.jd, payload.attachments);
+      if (!isTranslate && !useVision && payload.mode !== 'free') {
+        lastPrefix = stablePrefixFor(payload.resume || payload.background, payload.jd, payload.attachments, payload.oeaiMode);
         lastPrefixActivity = Date.now();
       }
 

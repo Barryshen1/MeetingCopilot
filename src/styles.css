@@ -697,7 +697,7 @@ body {
 .turn-vision {
   border-left-color: #e08a2a;
 }
-/* OEAI mock feedback: rating of MY answer, not an answer to read */
+/* Preserve the style of OEAI feedback already saved in older sessions. */
 .turn-oeai {
   border-left-color: var(--on-border);
 }

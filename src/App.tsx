@@ -18,8 +18,7 @@ import {
   reindexSegments,
   type TranscriptSegment,
 } from '../shared/transcript';
-import { isLikelyQuestion } from '../shared/textHeuristics';
-import { oeaiPairFor, type OeaiPair } from '../shared/oeai';
+import { isLikelyOeaiPrompt, isLikelyQuestion } from '../shared/textHeuristics';
 import { captureKindForPlatform } from '../shared/platform';
 import { deriveServiceHealth } from '../shared/healthState';
 import { LoopbackCapture } from './audio/loopbackCapture';
@@ -88,7 +87,7 @@ export function App() {
   const [showHud, setShowHud] = useState(true);
   const [hud, setHud] = useState<HudStats>({ count: 0 });
   const [continuous, setContinuous] = useState(false);
-  /** OEAI mock (friend = examiner): rate MY answers; never auto-answer */
+  /** OEAI oral-interview answer style; continuous suggestions remain independent. */
   const [oeai, setOeai] = useState(false);
   const [mics, setMics] = useState<{ deviceId: string; label: string }[]>([]);
   const [micActive, setMicActive] = useState(false);
@@ -110,6 +109,8 @@ export function App() {
   const sessionsRef = useRef<StoredSession[]>([]);
   const currentIdRef = useRef<string>('');
   const answerLangRef = useRef<AnswerLang>('auto');
+  // Read the latest scenario on new transcript lines without replaying the last line when toggled.
+  const oeaiRef = useRef(false);
   const loaded = useRef(false);
   const filePickerPendingRef = useRef(false);
 
@@ -124,6 +125,7 @@ export function App() {
   settingsRef.current = settings;
   sessionsRef.current = sessions;
   currentIdRef.current = currentId;
+  oeaiRef.current = oeai;
 
   const current = useMemo(
     () => sessions.find((s) => s.id === currentId) ?? null,
@@ -177,7 +179,7 @@ export function App() {
   const prewarm = useCallback(
     (immediate: boolean) => {
       const m = currentMaterial();
-      window.mc.prewarm({ resume: m.resume, jd: m.jd, attachments: m.attachments, immediate });
+      window.mc.prewarm({ resume: m.resume, jd: m.jd, attachments: m.attachments, oeaiMode: oeaiRef.current, immediate });
     },
     [currentMaterial],
   );
@@ -237,6 +239,7 @@ export function App() {
       const payload: LlmAskPayload = {
         requestId,
         mode,
+        oeaiMode: oeaiRef.current && mode !== 'translate',
         question: mode === 'free' ? undefined : question,
         freeQuestion: mode === 'free' ? text : undefined,
         recentTranscript: segs.slice(-30).map((s) => s.text),
@@ -249,28 +252,13 @@ export function App() {
     [appendTurn, buildHistory, currentMaterial, maybeTitle],
   );
 
-  /** OEAI mock: send the examiner's question + MY answer to the OEAI scenario prompt */
-  const evaluateOeai = useCallback(
-    (pair: OeaiPair | null) => {
-      const sid = currentIdRef.current;
-      if (!sid || !pair?.answer.trim()) return;
-      const requestId = uid('req');
-      appendTurn(sid, {
-        id: requestId,
-        kind: 'oeai',
-        label: tRef.current.app.oeaiTurnLabel(pair.answer),
-        text: '',
-        status: 'streaming',
-      });
-      window.mc.llmAsk({ requestId, mode: 'oeai', oeai: pair, recentTranscript: [] });
-    },
-    [appendTurn],
-  );
-
   const toggleOeai = useCallback(() => {
-    if (!oeai) setContinuous(false); // entering OEAI: no auto-answers
-    setOeai(!oeai);
-  }, [oeai]);
+    const next = !oeaiRef.current;
+    oeaiRef.current = next;
+    setOeai(next);
+    const material = currentMaterial();
+    window.mc.prewarm({ resume: material.resume, jd: material.jd, attachments: material.attachments, oeaiMode: next });
+  }, [currentMaterial]);
 
   const askShot = useCallback(
     (question: string, imageDataUrl?: string) => {
@@ -461,13 +449,13 @@ export function App() {
   // mic), question-gated + append, per current session.
   const lastSeg = segments.length ? segments[segments.length - 1] : null;
   useEffect(() => {
-    if (!continuous || oeai || !lastSeg) return;
+    if (!continuous || !lastSeg) return;
     if ((lastSeg.speaker ?? 'them') !== 'them') return; // ignore my own voice
-    if (!isLikelyQuestion(lastSeg.text)) return;
+    if (!(oeaiRef.current ? isLikelyOeaiPrompt(lastSeg.text) : isLikelyQuestion(lastSeg.text))) return;
     const timer = setTimeout(() => askLlm('continuous'), 1100);
     return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [continuous, oeai, lastSeg?.id, lastSeg?.endTs]);
+  }, [continuous, lastSeg?.id, lastSeg?.endTs]);
 
   // Windows: Electron system loopback. macOS/Linux: selected ordinary input
   // (typically a virtual audio device for meeting/system audio).
@@ -743,6 +731,7 @@ export function App() {
           resume: slot === 'resume' ? r.text : session.resumeText,
           jd: slot === 'jd' ? r.text : session.jdText,
           attachments: session.attachments,
+          oeaiMode: oeaiRef.current,
           immediate: true,
         });
       }
@@ -762,6 +751,7 @@ export function App() {
         resume: slot === 'resume' ? undefined : currentMaterial().resume,
         jd: slot === 'jd' ? undefined : currentMaterial().jd,
         attachments: currentMaterial().attachments,
+        oeaiMode: oeaiRef.current,
       });
     },
     [patchSession, currentMaterial],
@@ -805,6 +795,7 @@ export function App() {
           resume: session.resumeText,
           jd: session.jdText,
           attachments,
+          oeaiMode: oeaiRef.current,
           immediate: true,
         });
       }
@@ -820,7 +811,7 @@ export function App() {
       ...session,
       attachments: (session.attachments ?? []).filter((file) => file.id !== id),
     }));
-    window.mc.prewarm({ resume: material.resume, jd: material.jd, attachments });
+    window.mc.prewarm({ resume: material.resume, jd: material.jd, attachments, oeaiMode: oeaiRef.current });
   }, [currentMaterial, patchSession]);
 
   /** the v1 -> v2 migration marks hand-configured profiles; show the notice
@@ -892,7 +883,6 @@ export function App() {
           <button
             className={continuous ? 'btn btn-on' : 'btn'}
             onClick={() => setContinuous((v) => !v)}
-            disabled={oeai}
             title={t.titlebar.continuousTitle}
           >
             {t.titlebar.continuous}
@@ -1057,8 +1047,6 @@ export function App() {
           onTranslate={translateSegment}
           onClear={clearTranscript}
           oeai={oeai}
-          onEvaluate={(seg) => evaluateOeai(oeaiPairFor(segments, seg.id))}
-          onEvaluateSelection={(text) => evaluateOeai({ question: '', answer: text })}
         />
         <AnswerSession
           sessions={sessions}
