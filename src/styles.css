@@ -697,6 +697,10 @@ body {
 .turn-vision {
   border-left-color: #e08a2a;
 }
+/* OEAI mock feedback: rating of MY answer, not an answer to read */
+.turn-oeai {
+  border-left-color: var(--on-border);
+}
 .turn-continuous {
   border-left-color: #2ea05c;
 }

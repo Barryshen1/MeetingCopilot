@@ -24,6 +24,9 @@ export function TranscriptPanel({
   onAsk,
   onTranslate,
   onClear,
+  oeai = false,
+  onEvaluate,
+  onEvaluateSelection,
 }: {
   segments: TranscriptSegment[];
   partials?: { them?: string; me?: string };
@@ -33,6 +36,10 @@ export function TranscriptPanel({
   onAsk: (text: string) => void;
   onTranslate: (seg: TranscriptSegment) => void;
   onClear: () => void;
+  /** OEAI practice: my lines get 评估 (rate my answer); nothing answers the examiner */
+  oeai?: boolean;
+  onEvaluate?: (seg: TranscriptSegment) => void;
+  onEvaluateSelection?: (text: string) => void;
 }) {
   const t = useT();
   const boxRef = useRef<HTMLDivElement>(null);
@@ -65,7 +72,10 @@ export function TranscriptPanel({
   };
 
   const answerSel = () => {
-    if (sel) onAsk(sel.text);
+    if (sel) {
+      if (oeai) onEvaluateSelection?.(sel.text);
+      else onAsk(sel.text);
+    }
     window.getSelection()?.removeAllRanges();
     setSel(null);
   };
@@ -74,7 +84,7 @@ export function TranscriptPanel({
     <section className="pane pane-transcript">
       <header className="pane-head">
         <span className="pane-title">{t.transcript.title}</span>
-        <span className="pane-hint">{t.transcript.hint}</span>
+        <span className="pane-hint">{oeai ? t.transcript.oeaiHint : t.transcript.hint}</span>
         <button className="btn btn-sm" onClick={onClear} title={t.transcript.clearTitle}>
           {t.transcript.clear}
         </button>
@@ -119,7 +129,20 @@ export function TranscriptPanel({
                   >
                     {t.transcript.translateBtn}
                   </button>
-                  {!me && (
+                  {oeai && me && (
+                    <button
+                      className="bubble-ask"
+                      disabled={!answersReady}
+                      title={answersReady ? t.transcript.evaluateTitle : answersHint}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onEvaluate?.(s);
+                      }}
+                    >
+                      {t.transcript.evaluateBtn}
+                    </button>
+                  )}
+                  {!oeai && !me && (
                     <button
                       className="bubble-ask"
                       disabled={!answersReady}
@@ -173,7 +196,7 @@ export function TranscriptPanel({
             title={answersReady ? undefined : answersHint}
             onClick={answerSel}
           >
-            {t.transcript.answerSelection}
+            {oeai ? t.transcript.evaluateSelection : t.transcript.answerSelection}
           </button>
         </div>
       )}

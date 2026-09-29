@@ -3,7 +3,7 @@ import type { KbSlot, ScreenshotMode, StoredSession } from '../../shared/protoco
 import { useT } from '../i18n';
 import { InWindowSelect } from './InWindowSelect';
 
-export type TurnKind = 'segment' | 'continuous' | 'free' | 'translate' | 'vision';
+export type TurnKind = 'segment' | 'continuous' | 'free' | 'translate' | 'vision' | 'oeai';
 
 export interface AnswerTurn {
   id: string;

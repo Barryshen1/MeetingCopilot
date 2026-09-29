@@ -19,6 +19,7 @@ import {
   type TranscriptSegment,
 } from '../shared/transcript';
 import { isLikelyQuestion } from '../shared/textHeuristics';
+import { oeaiPairFor, type OeaiPair } from '../shared/oeai';
 import { captureKindForPlatform } from '../shared/platform';
 import { deriveServiceHealth } from '../shared/healthState';
 import { LoopbackCapture } from './audio/loopbackCapture';
@@ -87,6 +88,8 @@ export function App() {
   const [showHud, setShowHud] = useState(true);
   const [hud, setHud] = useState<HudStats>({ count: 0 });
   const [continuous, setContinuous] = useState(false);
+  /** OEAI mock (friend = examiner): rate MY answers; never auto-answer */
+  const [oeai, setOeai] = useState(false);
   const [mics, setMics] = useState<{ deviceId: string; label: string }[]>([]);
   const [micActive, setMicActive] = useState(false);
   const [partials, setPartials] = useState<{ them?: string; me?: string }>({});
@@ -145,7 +148,9 @@ export function App() {
   const buildHistory = useCallback((): { role: 'user' | 'assistant'; content: string }[] => {
     const s = sessionsRef.current.find((x) => x.id === currentIdRef.current);
     if (!s) return [];
-    const done = s.turns.filter((t) => t.status === 'done' && t.kind !== 'translate').slice(-HISTORY_TURNS);
+    const done = s.turns
+      .filter((t) => t.status === 'done' && t.kind !== 'translate' && t.kind !== 'oeai')
+      .slice(-HISTORY_TURNS);
     return done.flatMap((t) => [
       { role: 'user' as const, content: t.label },
       { role: 'assistant' as const, content: t.text },
@@ -243,6 +248,29 @@ export function App() {
     },
     [appendTurn, buildHistory, currentMaterial, maybeTitle],
   );
+
+  /** OEAI mock: send the examiner's question + MY answer to the OEAI scenario prompt */
+  const evaluateOeai = useCallback(
+    (pair: OeaiPair | null) => {
+      const sid = currentIdRef.current;
+      if (!sid || !pair?.answer.trim()) return;
+      const requestId = uid('req');
+      appendTurn(sid, {
+        id: requestId,
+        kind: 'oeai',
+        label: tRef.current.app.oeaiTurnLabel(pair.answer),
+        text: '',
+        status: 'streaming',
+      });
+      window.mc.llmAsk({ requestId, mode: 'oeai', oeai: pair, recentTranscript: [] });
+    },
+    [appendTurn],
+  );
+
+  const toggleOeai = useCallback(() => {
+    if (!oeai) setContinuous(false); // entering OEAI: no auto-answers
+    setOeai(!oeai);
+  }, [oeai]);
 
   const askShot = useCallback(
     (question: string, imageDataUrl?: string) => {
@@ -433,13 +461,13 @@ export function App() {
   // mic), question-gated + append, per current session.
   const lastSeg = segments.length ? segments[segments.length - 1] : null;
   useEffect(() => {
-    if (!continuous || !lastSeg) return;
+    if (!continuous || oeai || !lastSeg) return;
     if ((lastSeg.speaker ?? 'them') !== 'them') return; // ignore my own voice
     if (!isLikelyQuestion(lastSeg.text)) return;
     const timer = setTimeout(() => askLlm('continuous'), 1100);
     return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [continuous, lastSeg?.id, lastSeg?.endTs]);
+  }, [continuous, oeai, lastSeg?.id, lastSeg?.endTs]);
 
   // Windows: Electron system loopback. macOS/Linux: selected ordinary input
   // (typically a virtual audio device for meeting/system audio).
@@ -864,9 +892,17 @@ export function App() {
           <button
             className={continuous ? 'btn btn-on' : 'btn'}
             onClick={() => setContinuous((v) => !v)}
+            disabled={oeai}
             title={t.titlebar.continuousTitle}
           >
             {t.titlebar.continuous}
+          </button>
+          <button
+            className={oeai ? 'btn btn-on' : 'btn'}
+            onClick={toggleOeai}
+            title={t.titlebar.oeaiTitle}
+          >
+            {t.titlebar.oeai}
           </button>
           <button
             className={settings?.llm.answerWithVision ? 'btn btn-on' : 'btn'}
@@ -1020,6 +1056,9 @@ export function App() {
           onAsk={(text) => askLlm('segment', text)}
           onTranslate={translateSegment}
           onClear={clearTranscript}
+          oeai={oeai}
+          onEvaluate={(seg) => evaluateOeai(oeaiPairFor(segments, seg.id))}
+          onEvaluateSelection={(text) => evaluateOeai({ question: '', answer: text })}
         />
         <AnswerSession
           sessions={sessions}

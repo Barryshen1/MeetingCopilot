@@ -454,7 +454,7 @@ export type AsrEvent =
 
 export interface StoredTurn {
   id: string;
-  kind: 'segment' | 'continuous' | 'free' | 'translate' | 'vision';
+  kind: 'segment' | 'continuous' | 'free' | 'translate' | 'vision' | 'oeai';
   label: string;
   text: string;
   status: 'streaming' | 'done' | 'error';
@@ -493,7 +493,9 @@ export interface SessionsFile {
 
 export interface LlmAskPayload {
   requestId: string;
-  mode: 'segment' | 'continuous' | 'free' | 'translate';
+  mode: 'segment' | 'continuous' | 'free' | 'translate' | 'oeai';
+  /** OEAI practice: the examiner question + MY answer to rate (mode === 'oeai') */
+  oeai?: { question: string; answer: string };
   /** the sentence to answer (segment) or text to translate (translate) */
   question?: string;
   /** free-form question (mode === 'free') */

@@ -13,6 +13,7 @@
 import type { ChatMessage } from './adapter';
 import { MAX_SESSION_ATTACHMENTS, type AnswerLang, type ScreenshotMode, type SessionAttachment } from '../../shared/protocol';
 import { classifyQuestion, isLikelyQuestion, type QuestionKind } from '../../shared/textHeuristics';
+import type { OeaiPair } from '../../shared/oeai';
 
 export { isLikelyQuestion, classifyQuestion };
 
@@ -286,9 +287,11 @@ export interface AnswerPromptInput {
   question?: string;
   /** recent transcript lines, oldest first */
   recentTranscript: string[];
-  mode: 'segment' | 'continuous' | 'free' | 'translate';
+  mode: 'segment' | 'continuous' | 'free' | 'translate' | 'oeai';
   /** free-form user question (mode === 'free') */
   freeQuestion?: string;
+  /** the examiner question + MY answer to rate (mode === 'oeai') */
+  oeai?: OeaiPair;
   /** reply language for segment/continuous/free (default chinese for direct callers) */
   answerLang?: AnswerLang;
   /** prior Q&A turns for a coherent session (oldest first) */
@@ -413,9 +416,58 @@ export function buildVisionMessages(
   ];
 }
 
+/**
+ * OEAI scenario (UIUC ITA oral interview, mock with a friend as examiner).
+ * The model is the RATER + coach: it scores the answer I already gave, it does
+ * not answer the examiner for me. Format and 1–5 descriptors follow
+ * linguistics.illinois.edu (OEAI page + "Interpreting OEAI scores").
+ */
+const OEAI_SCENARIO = [
+  '你是 OEAI（伊利诺伊大学 Oral English Assessment Interview，国际助教 ITA 英语口语面试）的评分员兼英语口语教练。',
+  '我正在和朋友模拟 OEAI：朋友当考官，我是考生。你拿到的是自动语音转写（ASR）文本，听不到声音。',
+  'OEAI 约 15 分钟、线上进行、没有准备时间：Warm-up（学术生活、时事或社区话题，2 分钟）→ Term Definitions（本专业课程里的两个术语，像给本科生讲课一样下定义，并回答追问，4 分钟）→ Open-ended Questions（本专业相关的观点支持、比较、假设类问题，6 分钟）→ Wind-down（2 分钟）。听不懂时考生可以请考官澄清。',
+  '评分 1–5：5 = 沟通始终有效，几乎不需要听者费力；4 = 高度有效，可以上课，听者略需费力；3 = 总体有效，但弱点影响听者理解（有条件通过）；2 = 部分有效，明显的语言弱点让听者持续费力；1 = 勉强有效，听者需要非常费力。3 分及以上合格。',
+  '五项标准：Fluency（表达流畅，少有打断交流的卡顿）；Pronunciation（可懂度、稳定的发音和恰当语调——你只能从疑似被 ASR 听错的词间接判断，要说明这一点并保守给分）；Language Control（适合教学场景的词汇和语法，准确且多样）；Coherence & Pragmatics（结构清楚，如 定义→解释→例子，衔接自然，有沟通策略）；Comprehension（听懂并答到考官问的点，必要时会澄清）。',
+  '规则：',
+  '- 只评估【我的回答】里我已经说出的内容。如果【我的回答】为空，只回复一行：“还没检测到你的回答——答完后点你回答旁的「评估」。”不要写任何答案、要点或提示。',
+  '- 诚实校准，不要虚高；很短或跑题的回答不能给高分。',
+  '- 讲解用中文；原话、改法和参考版用自然的美式英语口语。',
+  '- 不用 Markdown 标题或加粗，严格按下面的格式输出纯文本：',
+  '估分：X/5（Fluency X · Pronunciation X · Language X · Coherence X · Comprehension X）',
+  '做得好：一两句',
+  '改进（最多 4 条，最重要的在前）：',
+  '- "原话" → "更好的说法"｜原因',
+  '发音提示（本题最多 3 个关键词，逐个音素拆开，例如 b + æ + r + i，并注明重音）：',
+  '- 单词：音素拆分（重音）',
+  '参考改进版（保留我的思路，不超过 120 个英文词，供我答完后学习）：',
+  '（英文段落）',
+  '下次一个重点：一句',
+].join('\n');
+
+export function buildOeaiMessages(pair: OeaiPair | undefined): ChatMessage[] {
+  const question = (pair?.question ?? '').trim();
+  const answer = (pair?.answer ?? '').trim();
+  return [
+    { role: 'system', content: OEAI_SCENARIO },
+    {
+      role: 'user',
+      content: [
+        '【考官的问题】',
+        question || '（没有转写到考官的问题；如果和我共用一个麦克风，问题可能在我回答的开头，请据此判断）',
+        '',
+        '【我的回答】',
+        answer || '（空）',
+      ].join('\n'),
+    },
+  ];
+}
+
 export function buildAnswerMessages(input: AnswerPromptInput): ChatMessage[] {
   if (input.mode === 'translate') {
     return buildTranslateMessages(input.question ?? '');
+  }
+  if (input.mode === 'oeai') {
+    return buildOeaiMessages(input.oeai);
   }
 
   const lang: AnswerLang = input.answerLang ?? 'chinese';
