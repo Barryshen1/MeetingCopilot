@@ -140,7 +140,7 @@ const zh = {
     screenshotCodingTest: 'Coding Test',
     codexModelLabel: 'Codex 模型',
     codexDefaultModel: 'CLI 默认',
-    changeCodexModel: '选择 GPT 模型与推理强度',
+    changeCodexModel: '选择 GPT 模型、推理强度与 Fast 模式',
   },
   status: {
     state: {
@@ -349,6 +349,12 @@ const zh = {
     codexEffort: '推理强度',
     codexDefaultEffort: '使用 Codex 默认强度',
     codexUnsupportedEffort: '当前模型未列出此选项',
+    codexFast: 'Fast 模式',
+    codexFastOn: '开启（更快，消耗更多 Codex 额度）',
+    codexFastOff: '关闭（标准速度）',
+    codexFastTier: (name: string, description: string) => `当前模型的 ${name} 档位：${description}`,
+    codexFastUnlisted: '当前模型未列出 Fast 档位，Codex 会按标准速度回答。',
+    codexFastHint: '对应 Codex CLI 的 /fast（priority 服务档位）。只影响 MeetingCopilot，不改你的全局 Codex 设置。',
     codexTestHint: '测试会实际生成一小段文本，消耗你的 Codex 额度或 API 用量。安装与登录状态不代表请求一定成功。',
     codexUnsavedTest: '当前填写的配置测试通过。请保存；保存后再次测试可将验证结果记录到服务状态。',
     codexAdvanced: 'Codex 高级设置',
@@ -627,7 +633,7 @@ const en: Dict = {
     screenshotCodingTest: 'Coding Test',
     codexModelLabel: 'Codex model',
     codexDefaultModel: 'CLI default',
-    changeCodexModel: 'Choose a GPT model and reasoning effort',
+    changeCodexModel: 'Choose a GPT model, reasoning effort, and Fast mode',
   },
   status: {
     state: {
@@ -837,6 +843,12 @@ const en: Dict = {
     codexEffort: 'Reasoning effort',
     codexDefaultEffort: 'Use the Codex default effort',
     codexUnsupportedEffort: 'not listed for this model',
+    codexFast: 'Fast mode',
+    codexFastOn: 'On (faster, uses more Codex allowance)',
+    codexFastOff: 'Off (standard speed)',
+    codexFastTier: (name: string, description: string) => `${name} tier for this model: ${description}`,
+    codexFastUnlisted: 'This model lists no Fast tier, so Codex answers at standard speed.',
+    codexFastHint: 'Same as /fast in Codex CLI (the priority service tier). Applies to MeetingCopilot only; your global Codex settings stay unchanged.',
     codexTestHint: 'The test generates a short response and uses your Codex allowance or API usage. Installation and login status do not prove a request will succeed.',
     codexUnsavedTest: 'The entered configuration passed. Save it, then test again to record verification in Service status.',
     codexAdvanced: 'Advanced Codex settings',

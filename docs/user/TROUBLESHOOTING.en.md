@@ -77,6 +77,8 @@ The main window deliberately stays out of the taskbar, so after hiding it there 
 
 If another app already owns that hotkey, registration fails silently — the tray is the fallback for exactly that case. You can also pick a different combination in Settings.
 
+**macOS: the window takes a long time to appear, or Spotlight / Launchpad lists several MeetingCopilot apps.** Check where the app lives. From a USB hard disk, a launch can take over a minute, and clicking again starts another process that waits in line. Install it on the internal disk (`npm run install:mac` installs to `/Applications` by default) and delete every other `MeetingCopilot.app` copy (old backups, extracted folders, `release/` builds): they share one bundle id, and macOS may launch an old one.
+
 ## 7. A saved API key stopped working
 
 - If you ever saw the "This system cannot use secure credential storage" warning, keys on this machine could only be obfuscated. Fix the credential service and save the key again.

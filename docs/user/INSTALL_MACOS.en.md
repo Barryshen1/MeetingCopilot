@@ -21,10 +21,15 @@ git clone https://github.com/Barryshen1/MeetingCopilot.git
 cd MeetingCopilot
 npm ci             # applies the required patches/ automatically
 npm run dist:mac:dir
-open release/mac-arm64/MeetingCopilot.app
+npm run install:mac   # installs to /Applications and removes the release/ build copy
+open -a /Applications/MeetingCopilot.app
 ```
 
-The app is created at `release/mac-arm64/MeetingCopilot.app`. Move it to your preferred Applications folder after quitting it if you want a stable installed location. To also create an archive, run `npm run dist:mac`; the ZIP is named `MeetingCopilot-<version>-mac-arm64-adhoc.zip` under `release/`.
+`npm run install:mac` checks that the app is not running, copies `release/mac-arm64/MeetingCopilot.app` to `/Applications` (set `MC_INSTALL_DIR` for another folder), verifies the signature, registers that copy with macOS, and then deletes the `.app` build copy under `release/`. `npm run dist:mac` also creates `MeetingCopilot-<version>-mac-arm64-adhoc.zip` under `release/`; the install script keeps the ZIP.
+
+**Install on the internal disk.** This is a ~650 MB Electron app. Launched from a busy USB hard disk it took 40–75 s before a window appeared, which looks like the app does not open; from the internal SSD it opens in under a second. The app data folder can stay on an external disk.
+
+**Keep exactly one `.app`.** Every `MeetingCopilot.app` (backups, extracted copies, and `release/` builds included) registers under the same bundle id, appears again in Spotlight / Launchpad, and "open MeetingCopilot" may start an old copy. For a rollback backup, make a ZIP instead: `ditto -c -k --keepParent /Applications/MeetingCopilot.app ~/MeetingCopilot-backup.zip`.
 
 The build retains hardened runtime and signs the app and its helpers ad hoc. The entitlements allow Electron's JIT, loading its bundled libraries, and microphone access. They do not grant microphone or screen-recording consent; macOS still asks you.
 

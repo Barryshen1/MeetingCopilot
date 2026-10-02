@@ -49,6 +49,7 @@ export function AnswerSession({
   onScreenshotModeChange,
   codexModel,
   codexEffort,
+  codexFast,
   onConfigureCodex,
 }: {
   sessions: StoredSession[];
@@ -82,6 +83,8 @@ export function AnswerSession({
   /** Present only when Codex CLI generates answers. */
   codexModel?: string;
   codexEffort?: string;
+  /** Codex Fast mode (priority service tier) is on for answers. */
+  codexFast?: boolean;
   onConfigureCodex?: () => void;
 }) {
   const t = useT();
@@ -278,7 +281,7 @@ export function AnswerSession({
         <span>{t.answer.codexModelLabel}</span>
         <button type="button" className="btn btn-sm answer-model-button"
           onClick={onConfigureCodex} title={t.answer.changeCodexModel}>
-          {codexModel || t.answer.codexDefaultModel}{codexEffort ? ` · ${codexEffort}` : ''} ▾
+          {codexModel || t.answer.codexDefaultModel}{codexEffort ? ` · ${codexEffort}` : ''}{codexFast ? ' · Fast' : ''} ▾
         </button>
       </div>}
       {visionReady && (

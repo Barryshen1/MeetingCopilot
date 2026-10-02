@@ -20,6 +20,7 @@ import {
 } from '../shared/transcript';
 import { isLikelyOeaiPrompt, isLikelyQuestion } from '../shared/textHeuristics';
 import { captureKindForPlatform } from '../shared/platform';
+import { CODEX_FAST_SERVICE_TIER, codexServiceTier } from '../shared/codex';
 import { deriveServiceHealth } from '../shared/healthState';
 import { LoopbackCapture } from './audio/loopbackCapture';
 import { MicCapture, listMics } from './audio/micCapture';
@@ -1081,6 +1082,7 @@ export function App() {
           onScreenshotModeChange={(mode) => void updateScreenshotMode(mode)}
           codexModel={settings?.llm.backend === 'codex-cli' ? settings.llm.codex?.model : undefined}
           codexEffort={settings?.llm.backend === 'codex-cli' ? settings.llm.codex?.reasoningEffort : undefined}
+          codexFast={settings?.llm.backend === 'codex-cli' && codexServiceTier(settings.llm.codex) === CODEX_FAST_SERVICE_TIER}
           onConfigureCodex={settings?.llm.backend === 'codex-cli'
             ? () => { setFocusCodexModel(true); setShowSettings(true); }
             : undefined}
