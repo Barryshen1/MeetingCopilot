@@ -41,7 +41,7 @@ In order:
 4. **Is the engine up?** Check the status bar. If it stays on "Loading model…", click the service chips to open the Service status panel and see which service never connected.
 5. **Re-run the audio check:** Settings → "Run the setup wizard again", step 4, which has a live level meter.
 
-macOS has no system loopback capture: install a virtual device such as BlackHole and select it under Settings → other-party audio input. See [docs/macos/SETUP.md](../macos/SETUP.md).
+On macOS the other party is recorded from what the Mac plays (macOS 14.2+), not from an input device. If nothing appears, allow MeetingCopilot under System Settings → Privacy & Security → Screen & System Audio Recording and press ▶ Start again. See [docs/macos/SETUP.md](../macos/SETUP.md).
 
 ## 3. Transcription works, but there are no AI answers
 

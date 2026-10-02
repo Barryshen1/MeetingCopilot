@@ -181,7 +181,7 @@ const zh = {
     ],
     macTitle: 'macOS 音频输入',
     macHint:
-      'macOS 无法直接采集系统声音。请先安装 BlackHole 等虚拟音频设备，并在下面把它选为对方音频输入。',
+      '对方的声音直接录自 Mac 正在播放的声音，不使用麦克风，也不需要 BlackHole。点「开始检测」后播放一段视频或会议声音；第一次 macOS 会请你允许 MeetingCopilot 录制系统音频。',
     macDevice: '对方音频输入',
     micTitle: '麦克风（可选）',
     micOff: '暂不启用',
@@ -420,7 +420,7 @@ const en: SetupDict = {
     ],
     macTitle: 'macOS audio input',
     macHint:
-      'macOS cannot capture system audio directly. Install a virtual audio device such as BlackHole and select it below as the other-party input.',
+      'The other party is recorded straight from what the Mac plays: no microphone, no BlackHole. Start the check and play a video or meeting audio; the first time, macOS asks you to let MeetingCopilot record system audio.',
     macDevice: 'Other-party audio input',
     micTitle: 'Microphone (optional)',
     micOff: 'Leave disabled',

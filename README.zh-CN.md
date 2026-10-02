@@ -23,7 +23,7 @@
 
 - **通过 Codex CLI 回答：**调用本机已安装并登录的 Codex CLI，支持回答、翻译、会议备忘和截图问答。配置见 [Codex CLI 指南](docs/CODEX_CLI.zh-CN.md)（[English](docs/CODEX_CLI.en.md)）。接入方式参考了 [Natively](https://github.com/Natively-AI-assistant/natively-cluely-ai-assistant) 的 CLI 服务商工作流。
 - **本地 macOS 应用：**运行 `npm run dist:mac:dir` 生成 Apple 芯片 `.app`，或 `npm run dist:mac` 生成临时签名的 ZIP。详见 [macOS 安装指南](docs/user/INSTALL_MACOS.zh-CN.md)。
-- **转录单独配置：**Codex CLI 处理文字和图片；语音转录仍需选择本地或云端后端。macOS 的会议 / 系统音频仍需通过 BlackHole 等可选择的输入设备路由。
+- **转录单独配置：**Codex CLI 处理文字和图片；语音转录仍需选择本地或云端后端。macOS 14.2+ 直接录制 Mac 正在播放的声音作为「对方」，不使用麦克风，也不需要虚拟音频设备。
 
 下方的上游下载和演示介绍原项目。上游安装包不包含本分支的 Codex CLI 接入。
 
@@ -85,7 +85,7 @@
 
 ## 功能亮点
 
-- 🎧 **直接听对方的声音，不进会**：Windows 采集系统回环音频；macOS 使用可选择的音频输入（会议/系统声音可通过 BlackHole 等虚拟设备路由）。麦克风为独立通道，可单独转录你自己的发言。
+- 🎧 **直接听对方的声音，不进会**：Windows 采集系统回环音频；macOS 14.2+ 通过内置的 Core Audio 小组件录制 Mac 正在播放的声音，不使用麦克风。麦克风为独立通道，可单独转录你自己的发言。
 - ⚡ **四类转录后端随心切**：本地侧车（FunASR 默认；MOSS-Transcribe 0.9B 实验）· 本地 Whisper turbo（离线兜底，DirectML GPU）· 阿里云 `fun-asr-realtime`（云端逐字流式）· MiMo 按段。FunASR 说话中即出灰色实时字幕，MOSS 在停顿后整句输出。
 - 🌍 **中英双语开箱即用**：转录能识别一场会里的中英切换。答案语言选 `答:自动` 可跟随每次提问；选 `答:中` / `答:EN` 则固定为中文或英文。
 - 🌐 **界面中英文一键切换**：按钮、提示、对话框、状态栏全部有中英两套文案，在 *设置 → 外观 → 界面语言* 里切换；首次启动自动跟随系统语言。界面语言与答案语言互相独立——可以英文界面配中文答案，反之亦然。
@@ -155,7 +155,7 @@
 | 平台 | 音频采集 | 隐身 | 指南 |
 |---|---|---|---|
 | 🪟 **Windows 10 / 11** | 系统回环——零配置 | 窗口对采集不可见 | **[docs/windows/SETUP.zh-CN.md](docs/windows/SETUP.zh-CN.md)** |
-| 🍎 **macOS 14+（Apple 芯片）** | 输入设备 + [BlackHole](https://github.com/ExistentialAudio/BlackHole) 路由 | 尽力而为（ScreenCaptureKit 可能捕获） | **[docs/macos/SETUP.zh-CN.md](docs/macos/SETUP.zh-CN.md)** |
+| 🍎 **macOS 14+（Apple 芯片）** | 系统声音（内置小组件，macOS 14.2+） | 尽力而为（ScreenCaptureKit 可能捕获） | **[docs/macos/SETUP.zh-CN.md](docs/macos/SETUP.zh-CN.md)** |
 
 ### 本地流式 FunASR
 

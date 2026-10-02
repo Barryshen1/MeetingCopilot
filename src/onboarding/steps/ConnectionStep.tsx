@@ -16,6 +16,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { LoopbackCapture } from '../../audio/loopbackCapture';
 import { MicCapture, listMics } from '../../audio/micCapture';
+import { SystemAudioTestCapture } from '../systemAudioTestCapture';
 import { planDefinition, type KeySlot, type PlanSlot } from '../../../shared/onboardingPlans';
 import { storedKeyTest, targetFromPreset } from '../../../shared/providerTestRequests';
 import { ConnectionResult } from '../../components/providers/ConnectionResult';
@@ -143,7 +144,7 @@ export function ConnectionStep({
   >({});
   const [testError, setTestError] = useState<string | null>(null);
 
-  const captureRef = useRef<LoopbackCapture | MicCapture | null>(null);
+  const captureRef = useRef<LoopbackCapture | SystemAudioTestCapture | null>(null);
   const micRef = useRef<MicCapture | null>(null);
   const levelRef = useRef(0);
   const micLevelRef = useRef(0);
@@ -209,9 +210,9 @@ export function ConnectionStep({
     lastLoudRef.current = 0;
     try {
       if (isMac) {
-        const cap = new MicCapture();
-        // no echo cancellation / AGC: we want the raw level of the device
-        await cap.start(themDeviceId || undefined, onPcm, { audioProcessing: false });
+        // what the Mac plays, via the system-audio helper — never a microphone
+        const cap = new SystemAudioTestCapture();
+        await cap.start(onPcm);
         captureRef.current = cap;
       } else {
         const cap = new LoopbackCapture();
@@ -229,7 +230,7 @@ export function ConnectionStep({
       setDetail(msg);
       setState(NO_DEVICE_RE.test(msg) ? 'no-device' : 'failed');
     }
-  }, [isMac, onPcm, refreshDevices, stopTest, themDeviceId]);
+  }, [isMac, onPcm, refreshDevices, stopTest]);
 
   // microphone preview: only alive while 「启用麦克风」 is selected
   useEffect(() => {
@@ -358,23 +359,6 @@ export function ConnectionStep({
           {isMac ? t.connection.macHint : t.connection.audioIntro}
         </p>
 
-        {isMac && (
-          <div className="setup-field">
-            <span className="setup-field-label">{t.connection.macDevice}</span>
-            <select
-              className="setup-select"
-              value={themDeviceId}
-              onChange={(e) => onThemDeviceId(e.target.value)}
-            >
-              <option value="">{t.connection.micDefault}</option>
-              {devices.map((d) => (
-                <option key={d.deviceId} value={d.deviceId}>
-                  {d.label || d.deviceId}
-                </option>
-              ))}
-            </select>
-          </div>
-        )}
 
         <div className="meter-row">
           <span className="meter-label">{t.connection.level}</span>

@@ -81,7 +81,7 @@ export function planDefinition(plan: OnboardingPlan): PlanDefinition {
 export interface PlanPatchOptions {
   micEnabled: boolean;
   micDeviceId?: string;
-  /** macOS: the input standing in for system audio (BlackHole & co.) */
+  /** Linux: the input used for the other party (macOS ignores it: system audio) */
   themDeviceId?: string;
   lang: UiLang;
 }

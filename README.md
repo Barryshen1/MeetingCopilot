@@ -23,7 +23,7 @@ This is [Barryshen1's personal fork](https://github.com/Barryshen1/MeetingCopilo
 
 - **Codex CLI answers:** use your installed Codex CLI and its existing sign-in for answers, translation, meeting memo and screenshot questions. See [Codex CLI setup](docs/CODEX_CLI.en.md) ([中文](docs/CODEX_CLI.zh-CN.md)). The integration was inspired by the CLI-provider workflow in [Natively](https://github.com/Natively-AI-assistant/natively-cluely-ai-assistant).
 - **Local macOS app:** build an Apple-silicon `.app` with `npm run dist:mac:dir`, or an ad-hoc-signed ZIP with `npm run dist:mac`. See [macOS installation](docs/user/INSTALL_MACOS.en.md).
-- **Transcription stays separate:** Codex CLI handles text and images; choose a local or cloud speech-recognition backend. Meeting/system audio on macOS still requires routing to a selectable input, such as BlackHole.
+- **Transcription stays separate:** Codex CLI handles text and images; choose a local or cloud speech-recognition backend. On macOS 14.2+ the other party is recorded straight from what the Mac plays, without the microphone or a virtual audio device.
 
 The upstream downloads and demos below describe the original project. Upstream binaries do not include this fork's Codex CLI integration.
 
@@ -85,7 +85,7 @@ You can reopen the wizard any time from *⚙ Settings → Run the setup wizard a
 
 ## Features
 
-- 🎧 **Hears the other side directly — no meeting bot.** Windows captures system loopback audio. macOS uses a selectable audio input (choose a virtual device such as BlackHole for meeting/system audio). An independent microphone channel transcribes your own voice separately.
+- 🎧 **Hears the other side directly — no meeting bot.** Windows captures system loopback audio. macOS 14.2+ records what the Mac plays through a bundled Core Audio helper, never the microphone. An independent microphone channel transcribes your own voice separately.
 - ⚡ **Four switchable ASR backend families** — local sidecars (FunASR by default; experimental MOSS-Transcribe 0.9B), local Whisper turbo (offline fallback, DirectML GPU), Alibaba Cloud `fun-asr-realtime`, and MiMo per-segment. FunASR provides live partials; MOSS emits a finalized utterance after a pause.
 - 🌍 **Bilingual (zh / en) out of the box** — ASR detects Chinese↔English switches mid-meeting. Set answer language to `A:Auto` to follow each question, or choose `A:ZH` / `A:EN` for a fixed language.
 - 🌐 **Fully English or Chinese interface** — every label, tooltip, dialog and status message is available in both languages. Switch under *Settings → Appearance → UI Language*; first launch follows your OS language automatically. UI language and answer language are independent, so you can run an English UI while reading Chinese answers, or vice versa.
@@ -155,7 +155,7 @@ Audio capture, Python setup, stealth behavior and hotkeys differ per platform �
 | Platform | Audio capture | Stealth | Guide |
 |---|---|---|---|
 | 🪟 **Windows 10 / 11** | system loopback — zero config | window excluded from captures | **[docs/windows/SETUP.md](docs/windows/SETUP.md)** |
-| 🍎 **macOS 14+ (Apple silicon)** | input device + [BlackHole](https://github.com/ExistentialAudio/BlackHole) routing | best-effort (ScreenCaptureKit may capture) | **[docs/macos/SETUP.md](docs/macos/SETUP.md)** |
+| 🍎 **macOS 14+ (Apple silicon)** | system audio (built-in helper, macOS 14.2+) | best-effort (ScreenCaptureKit may capture) | **[docs/macos/SETUP.md](docs/macos/SETUP.md)** |
 
 ### Local streaming FunASR
 

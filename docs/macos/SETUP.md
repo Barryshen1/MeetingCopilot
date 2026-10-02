@@ -8,8 +8,8 @@ resume/JD grounding — but two platform realities differ from Windows:
 1. **System audio comes from a bundled helper.** Electron's `audio: 'loopback'`
    source is Windows-only, so on macOS 14.2+ the other-party channel uses
    `mc-system-audio`, a small helper that records what the Mac is playing through
-   a Core Audio process tap. It never opens the microphone. You can still pick
-   an input device such as BlackHole instead (below).
+   a Core Audio process tap. It never opens the microphone, and no virtual
+   audio device is needed (below).
 2. **Stealth is best-effort.** Recent ScreenCaptureKit clients may still
    capture the window; full invisibility is not guaranteed on macOS.
 
@@ -23,7 +23,7 @@ Engineering details live in the [port SDD](macos-port-sdd.md).
 | Runtime | Node.js ≥ 20 and npm |
 | LLM | An installed and signed-in Codex CLI, or an OpenAI-compatible API key |
 | Local streaming ASR *(default)* | Python 3.10/3.11 in a project `.venv`; Apple MPS with CPU fallback |
-| System-audio capture | [BlackHole](https://github.com/ExistentialAudio/BlackHole) (or a similar virtual audio device) |
+| System-audio capture | macOS 14.2+ (built in; allow “System Audio Recording” on first start) |
 | Cloud ASR *(optional)* | Alibaba Cloud DashScope API key, or a MiMo key |
 
 ## Install & run
@@ -36,42 +36,17 @@ npm run build
 npm start
 ```
 
-## Audio: route the meeting into MeetingCopilot
+## Audio: the other party = what the Mac plays
 
-**Default: System audio.** With *Settings → Audio Devices → Other-party audio
-input* set to **System audio**, ▶ Start records whatever the Mac is playing —
-the meeting app, a video — and never the microphone. Your own voice reaches the
-transcript only through the separate **🎤** channel. On the first start macOS
-asks you to let MeetingCopilot record system audio (System Settings → Privacy &
-Security → Screen & System Audio Recording). Requires macOS 14.2+;
-`npm run build` compiles the helper with `swiftc` (Apple Command Line Tools).
+▶ Start records whatever the Mac is playing — the meeting app, a video — through
+the bundled `mc-system-audio` helper. It never opens the microphone, and no
+BlackHole or Multi-Output device is needed. Your own voice reaches the
+transcript only through the separate **🎤** channel, labelled “Me”.
 
-**Alternative: BlackHole.** To capture a meeting app through a virtual device
-instead:
-
-1. **Install BlackHole** (2-channel build is enough):
-   ```bash
-   brew install blackhole-2ch
-   ```
-   Restart macOS so Core Audio loads the new device.
-2. **Create a Multi-Output Device** so you still *hear* the meeting:
-   open **Audio MIDI Setup** → `+` → *Create Multi-Output Device* → check both
-   your speakers/headphones **and** BlackHole 2ch. Keep the speakers as the
-   primary device and enable drift correction for BlackHole.
-3. **Send system output to it**: System Settings → Sound → Output → select the
-   Multi-Output Device. Sound now plays through your speakers *and* mirrors
-   into BlackHole.
-4. **Pick BlackHole in MeetingCopilot**: in Settings → Audio Devices, choose
-   *BlackHole 2ch* as the other-party audio input, then press **▶ Start**.
-   Grant microphone permission on first use.
-
-macOS may disable the global volume keys while the Multi-Output Device is the
-default; adjust the speaker volume in Audio MIDI Setup or switch the default
-output back to the speakers when you are done transcribing.
-
-Echo cancellation / noise suppression / auto gain are disabled on this channel
-so the virtual device's PCM arrives untouched; the separate **🎤** channel keeps
-normal microphone processing for your own voice.
+On the first start macOS asks you to let MeetingCopilot record system audio. If
+you declined, enable it under System Settings → Privacy & Security → Screen &
+System Audio Recording. Requires macOS 14.2+; `npm run build` compiles the
+helper with `swiftc` (Apple Command Line Tools).
 
 ## Local streaming FunASR (default ASR backend)
 

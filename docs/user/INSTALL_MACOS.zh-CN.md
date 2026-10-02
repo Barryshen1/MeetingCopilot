@@ -12,7 +12,7 @@
 | 构建工具 | Node.js ≥ 20、npm、Apple Command Line Tools（运行 `xcode-select -p` 可检查） |
 | AI 回答 | 已安装并登录的 Codex CLI，或 OpenAI 兼容 API 服务 |
 | 语音转录 | 云端 ASR key，或单独配置的本地 ASR 环境及模型 |
-| 会议 / 系统音频 | 通过 [BlackHole](https://github.com/ExistentialAudio/BlackHole) 等输入设备路由；单独使用麦克风录到的是房间声音 |
+| 会议 / 系统音频 | macOS 14.2+ 直接录制 Mac 正在播放的声音，不需要额外设备 |
 
 ## 构建应用
 
@@ -48,15 +48,9 @@ npm start
 
 ## 音频路由与权限
 
-默认情况下（「对方音频输入」= **系统声音**，macOS 14.2+），对方发言直接从 Mac 正在播放的声音录制，不经过麦克风，也不需要 BlackHole；第一次开始时按提示允许 MeetingCopilot 录制系统音频。若想改用 BlackHole 等输入设备采集会议 / 系统声音：
+「对方」直接录制 Mac 正在播放的声音（macOS 14.2+），不经过麦克风，也不需要 BlackHole 等虚拟设备。第一次点 **开始** 时，按提示允许 MeetingCopilot 录制系统音频，再检查音量条和转录文字。
 
-1. 单独安装 [BlackHole](https://github.com/ExistentialAudio/BlackHole)。
-2. 在 **音频 MIDI 设置** 中建立同时包含耳机和 BlackHole 的多输出设备。
-3. 将系统输出或会议软件输出设为该多输出设备。
-4. 在 MeetingCopilot 的 **设置 → 对方音频输入** 中选择 BlackHole。
-5. 点击 **开始**，出现提示时允许麦克风权限，并检查音量条和转录文字。
-
-麦克风权限适用于包括虚拟设备在内的音频输入。需要记录自己的发言时，还可单独启用麦克风通道。
+你自己的发言只会通过标题栏的 **🎤** 单独录制（需要麦克风权限），并标为「我」。
 
 截图问答需要 **屏幕录制** 权限（部分 macOS 版本称为 **屏幕与系统音频录制**）。按提示在 **系统设置 → 隐私与安全性** 中授权；如果系统要求，退出并重新打开 MeetingCopilot。这项权限本身不会配置会议音频路由。
 

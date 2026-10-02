@@ -42,6 +42,9 @@ const CH = {
   clipboardReadText: 'app:clipboard-read',
   appGetInfo: 'app:get-info',
   providerTest: 'provider:test',
+  systemAudioTestStart: 'system-audio:test-start',
+  systemAudioTestStop: 'system-audio:test-stop',
+  systemAudioTestFrame: 'system-audio:test-frame',
 } as const satisfies Pick<
   typeof IPC,
   | 'onboardingGet'
@@ -53,6 +56,9 @@ const CH = {
   | 'clipboardReadText'
   | 'appGetInfo'
   | 'providerTest'
+  | 'systemAudioTestStart'
+  | 'systemAudioTestStop'
+  | 'systemAudioTestFrame'
 >;
 
 export interface McSetupApi {
@@ -74,6 +80,10 @@ export interface McSetupApi {
   /** 「保存并测试连接」: one real provider round-trip, run only when the user
    * asks for it. The candidate key goes main-side and stays there. */
   providerTest(req: ProviderTestRequest): Promise<ProviderTestResult>;
+  /** macOS level check of the 对方 channel: what the Mac plays (no microphone) */
+  systemAudioTestStart(): Promise<void>;
+  systemAudioTestStop(): Promise<void>;
+  onSystemAudioTestFrame(cb: (frame: ArrayBuffer) => void): () => void;
 }
 
 const api: McSetupApi = {
@@ -87,6 +97,13 @@ const api: McSetupApi = {
   readClipboardText: () => ipcRenderer.invoke(CH.clipboardReadText),
   getAppInfo: () => ipcRenderer.invoke(CH.appGetInfo),
   providerTest: (req) => ipcRenderer.invoke(CH.providerTest, req),
+  systemAudioTestStart: () => ipcRenderer.invoke(CH.systemAudioTestStart),
+  systemAudioTestStop: () => ipcRenderer.invoke(CH.systemAudioTestStop),
+  onSystemAudioTestFrame: (cb) => {
+    const listener = (_e: Electron.IpcRendererEvent, frame: ArrayBuffer) => cb(frame);
+    ipcRenderer.on(CH.systemAudioTestFrame, listener);
+    return () => ipcRenderer.removeListener(CH.systemAudioTestFrame, listener);
+  },
 };
 
 contextBridge.exposeInMainWorld('mcSetup', api);
