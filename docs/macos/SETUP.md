@@ -5,10 +5,11 @@
 The macOS port keeps the whole pipeline — streaming ASR, teleprompter answers,
 resume/JD grounding — but two platform realities differ from Windows:
 
-1. **No system loopback capture.** Electron's `audio: 'loopback'` source is
-   Windows-only, so on macOS the other-party channel records from a selectable
-   **audio input device**. To hear a meeting app you route system audio through
-   a virtual device such as BlackHole (below).
+1. **System audio comes from a bundled helper.** Electron's `audio: 'loopback'`
+   source is Windows-only, so on macOS 14.2+ the other-party channel uses
+   `mc-system-audio`, a small helper that records what the Mac is playing through
+   a Core Audio process tap. It never opens the microphone. You can still pick
+   an input device such as BlackHole instead (below).
 2. **Stealth is best-effort.** Recent ScreenCaptureKit clients may still
    capture the window; full invisibility is not guaranteed on macOS.
 
@@ -37,7 +38,16 @@ npm start
 
 ## Audio: route the meeting into MeetingCopilot
 
-To capture a meeting app (Zoom / Teams / …) instead of your built-in mic:
+**Default: System audio.** With *Settings → Audio Devices → Other-party audio
+input* set to **System audio**, ▶ Start records whatever the Mac is playing —
+the meeting app, a video — and never the microphone. Your own voice reaches the
+transcript only through the separate **🎤** channel. On the first start macOS
+asks you to let MeetingCopilot record system audio (System Settings → Privacy &
+Security → Screen & System Audio Recording). Requires macOS 14.2+;
+`npm run build` compiles the helper with `swiftc` (Apple Command Line Tools).
+
+**Alternative: BlackHole.** To capture a meeting app through a virtual device
+instead:
 
 1. **Install BlackHole** (2-channel build is enough):
    ```bash

@@ -28,6 +28,7 @@ import {
 } from '../../shared/providerTestRequests';
 import { sanitizeApiKeyInput } from '../../shared/keyInput';
 import type { CodexSettings } from '../../shared/codex';
+import { themSourceFor } from '../../shared/platform';
 import { listMics } from '../audio/micCapture';
 import { useT } from '../i18n';
 import { ConnectionResult } from './providers/ConnectionResult';
@@ -164,6 +165,8 @@ export function SettingsPanel({
   );
   const [hotkeyShot, setHotkeyShot] = useState(settings.ui.hotkeyShot);
   const [autoLaunch, setAutoLaunch] = useState(settings.ui.autoLaunch);
+  const [autoExport, setAutoExport] = useState(settings.export?.autoExport !== false);
+  const [exportFolder, setExportFolder] = useState(settings.export?.folder ?? '');
   const [fontScale, setFontScale] = useState<FontScale>(settings.ui.fontScale ?? 'medium');
   const [theme, setTheme] = useState<ThemeMode>(settings.ui.theme ?? 'dark');
   const [uiLang, setUiLang] = useState<UiLang>(settings.ui.lang);
@@ -346,6 +349,7 @@ export function SettingsPanel({
           themDeviceId: themDeviceId || undefined,
           micDeviceId: micDeviceId || undefined,
         },
+        export: { autoExport },
       });
       llmKey.reset();
       visionKey.reset();
@@ -544,6 +548,16 @@ export function SettingsPanel({
     { value: '', label: t.settings.deviceDefault },
     ...devices.map((d) => ({ value: d.deviceId, label: d.label || d.deviceId })),
   ];
+
+  // macOS 对方: '' = what the Mac plays (no microphone); "default" would be the
+  // built-in mic, so it is not offered there
+  const isMac = window.mc.platform === 'darwin';
+  const themOptions = isMac
+    ? [
+        { value: '', label: t.settings.themSystemAudio },
+        ...devices.filter((d) => d.deviceId !== 'default').map((d) => ({ value: d.deviceId, label: d.label || d.deviceId })),
+      ]
+    : deviceOptions;
 
   // A disconnected saved device displays the system default until the device
   // returns, while the saved id remains in the draft unless the user changes it.
@@ -756,6 +770,37 @@ export function SettingsPanel({
       </div>
 
       <div className="settings-row">
+        <label>{t.settings.exportLabel}</label>
+        <InWindowSelect
+          value={autoExport ? 'on' : 'off'}
+          ariaLabel={t.settings.exportLabel}
+          onChange={(value) => setAutoExport(value === 'on')}
+          options={[
+            { value: 'on', label: t.settings.exportAutoOn },
+            { value: 'off', label: t.settings.exportAutoOff },
+          ]}
+        />
+        <div className="key-status">
+          <span className="settings-inline-hint codex-path" title={exportFolder}>{exportFolder}</span>
+          <button
+            className="btn btn-sm"
+            onClick={() => void window.mc.pickExportFolder().then((next) => {
+              if (!next) return;
+              setExportFolder(next.export.folder);
+              setLive(next);
+              onSettingsRefreshed?.(next);
+            })}
+          >
+            {t.settings.exportChangeFolder}
+          </button>
+          <button className="btn btn-sm" onClick={() => window.mc.revealExport()}>
+            {t.settings.exportOpenFolder}
+          </button>
+        </div>
+        <span className="settings-inline-hint">{t.settings.exportHint}</span>
+      </div>
+
+      <div className="settings-row">
         <label>{t.settings.hotkeyToggle}</label>
         <input value={hotkey} onChange={(e) => setHotkey(e.target.value)} spellCheck={false} />
       </div>
@@ -785,11 +830,12 @@ export function SettingsPanel({
       <div className="settings-row">
         <label>{t.settings.themDevice}</label>
         <InWindowSelect
-          value={visibleDeviceId(themDeviceId)}
+          value={isMac && themSourceFor('darwin', themDeviceId) === 'system' ? '' : visibleDeviceId(themDeviceId)}
           ariaLabel={t.settings.themDevice}
           onChange={setThemDeviceId}
-          options={deviceOptions}
+          options={themOptions}
         />
+        {isMac && <span className="settings-inline-hint">{t.settings.themDeviceMacHint}</span>}
       </div>
       <div className="settings-row">
         <label>{t.settings.micDevice}</label>

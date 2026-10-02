@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import type { TranscriptSegment } from '../../shared/transcript';
 import { useT } from '../i18n';
+import { nextStick } from '../../shared/stickToBottom';
 
 interface SelPopup {
   text: string;
@@ -24,6 +25,9 @@ export function TranscriptPanel({
   onAsk,
   onTranslate,
   onClear,
+  onExport,
+  exportNotice,
+  onRevealExport,
   oeai = false,
 }: {
   segments: TranscriptSegment[];
@@ -34,22 +38,34 @@ export function TranscriptPanel({
   onAsk: (text: string) => void;
   onTranslate: (seg: TranscriptSegment) => void;
   onClear: () => void;
+  /** write the meeting record (transcript only) now */
+  onExport?: () => void;
+  /** result line after a manual or automatic export */
+  exportNotice?: { text: string; path?: string; error?: boolean } | null;
+  onRevealExport?: (path: string) => void;
   /** OEAI oral-interview answer mode changes the hint, not answer controls. */
   oeai?: boolean;
 }) {
   const t = useT();
   const boxRef = useRef<HTMLDivElement>(null);
   const [stick, setStick] = useState(true);
+  const lastTop = useRef(0);
   const [sel, setSel] = useState<SelPopup | null>(null);
 
+  // live partials grow for as long as someone keeps talking: follow them too
   useEffect(() => {
-    if (stick && boxRef.current) boxRef.current.scrollTop = boxRef.current.scrollHeight;
-  }, [segments, stick]);
+    const el = boxRef.current;
+    if (stick && el) {
+      el.scrollTop = el.scrollHeight;
+      lastTop.current = el.scrollTop;
+    }
+  }, [segments, partials?.them, partials?.me, stick]);
 
   const onScroll = () => {
     const el = boxRef.current;
     if (!el) return;
-    setStick(el.scrollHeight - el.scrollTop - el.clientHeight < 48);
+    setStick((stuck) => nextStick(stuck, lastTop.current, el));
+    lastTop.current = el.scrollTop;
     setSel(null);
   };
 
@@ -78,10 +94,25 @@ export function TranscriptPanel({
       <header className="pane-head">
         <span className="pane-title">{t.transcript.title}</span>
         <span className="pane-hint">{oeai ? t.transcript.oeaiHint : t.transcript.hint}</span>
+        {onExport && (
+          <button className="btn btn-sm" onClick={onExport} title={t.transcript.exportTitle}>
+            {t.transcript.export}
+          </button>
+        )}
         <button className="btn btn-sm" onClick={onClear} title={t.transcript.clearTitle}>
           {t.transcript.clear}
         </button>
       </header>
+      {exportNotice && (
+        <div className={exportNotice.error ? 'kb-notice export-notice export-notice-error' : 'kb-notice export-notice'}>
+          <span title={exportNotice.text}>{exportNotice.text}</span>
+          {exportNotice.path && onRevealExport && (
+            <button className="btn btn-sm" onClick={() => onRevealExport(exportNotice.path!)}>
+              {t.transcript.exportShow}
+            </button>
+          )}
+        </div>
+      )}
       <div className="transcript" ref={boxRef} onScroll={onScroll} onMouseUp={captureSelection}>
         {segments.length === 0 ? (
           <div className="pane-empty">{t.transcript.empty}</div>

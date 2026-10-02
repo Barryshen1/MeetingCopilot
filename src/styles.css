@@ -528,6 +528,28 @@ body {
   flex-shrink: 0;
 }
 
+/* meeting-record export result under the transcript header */
+.export-notice {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-muted);
+  background: transparent;
+}
+.export-notice span {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.export-notice-error {
+  color: var(--error-text);
+}
+.pane-transcript .pane-head .btn + .btn {
+  margin-left: 6px;
+}
+
 /* selection popup for precise answer/translate */
 .sel-popup {
   position: fixed;

@@ -92,8 +92,17 @@ mac:
   notarize: false
   entitlements: build/entitlements.mac.plist
   entitlementsInherit: build/entitlements.mac.plist
+  # tools/build-mac-audio.mjs compiles the 对方 system-audio helper here; it
+  # must sit on the real filesystem (spawned, never read through asar) and is
+  # signed with the app like every other Mach-O in the bundle.
+  extraResources:
+    - from: resources/bin
+      to: resources/bin
+      filter:
+        - mc-system-audio
   extendInfo:
     NSMicrophoneUsageDescription: MeetingCopilot uses your selected audio input to transcribe speech when you start recording.
+    NSAudioCaptureUsageDescription: MeetingCopilot records what your Mac is playing (the other party in a meeting) to transcribe it. It never uses your microphone for this.
     NSScreenCaptureUsageDescription: MeetingCopilot captures the screen only when you request screenshot questions and answers.
 
 win:

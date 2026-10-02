@@ -16,3 +16,6 @@ models/
 HANDOFF.md
 PLAN.en.md
 PLAN.zh.md
+
+# compiled macOS system-audio helper (tools/build-mac-audio.mjs)
+resources/bin/
