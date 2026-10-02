@@ -37,6 +37,7 @@ import { SettingsStore, plainCipher, type SecretCipher } from './settings';
 import { SETUP_READY_MARKER, createSetupWindow } from './setupWindow';
 import { AppTray, trayIconPath } from './tray';
 import { revealAppWindow } from './windowReveal';
+import { applyWindowZoom } from './windowZoom';
 import { isRendererCommand, type TrayCommand, type TrayMenuState } from '../shared/trayMenu';
 import { KnowledgeStore } from './knowledge';
 import { SessionStore } from './sessions';
@@ -468,6 +469,14 @@ function bootstrap(): void {
       win = null;
     });
 
+    // A narrower window shrinks the whole overlay in proportion (page zoom),
+    // so the title bar does not wrap and text does not crowd. Chromium shares
+    // a zoom level across pages of one origin, and the setup wizard is the same
+    // file:// origin: while it is open the overlay stays at 100%.
+    const fitZoom = () => { if (!setupWin) applyWindowZoom(win); };
+    win.on('resize', fitZoom);
+    win.webContents.on('did-finish-load', fitZoom);
+
     if (process.env.ELECTRON_RENDERER_URL) {
       void win.loadURL(process.env.ELECTRON_RENDERER_URL);
     } else {
@@ -500,6 +509,7 @@ function bootstrap(): void {
       return;
     }
     setupRerun = rerun;
+    applyWindowZoom(win, 1); // shared same-origin zoom: the wizard renders at 100%
     const w = createSetupWindow();
     setupWin = w;
 
@@ -533,6 +543,7 @@ function bootstrap(): void {
       const wasRerun = setupRerun;
       setupWin = null;
       setupRerun = false;
+      applyWindowZoom(win);
       if (wasRerun) {
         // keys saved before the user backed out still have to reach the engine
         if (pendingAsrRestart) {

@@ -10,17 +10,8 @@
  * The overlay window is semi-transparent — light theme uses higher-opacity
  * surfaces so text stays readable over arbitrary desktop content. */
 :root {
-  /* Conversation text (transcript bubbles + answer bodies) follows the window
-   * width: full size at the default 940px window or wider, proportionally
-   * smaller as the window narrows (the window's minimum width is 640px), and
-   * never below 11px. Buttons and the title bar keep their size.
-   * --answer-font-base is the answer size in px at full size (ui.fontScale). */
-  --answer-font-base: 16;
-  --conv-full-width: 940;
-  --conv-min-font: 11px;
-  --answer-font-size: clamp(var(--conv-min-font), calc(var(--answer-font-base) * 100vw / var(--conv-full-width)), calc(var(--answer-font-base) * 1px));
-  --transcript-font-size: clamp(var(--conv-min-font), calc(13 * 100vw / var(--conv-full-width)), 13px);
-  --transcript-trans-font-size: clamp(10px, calc(12 * 100vw / var(--conv-full-width)), 12px);
+  /* answer-body font size (right pane only; ui.fontScale) */
+  --answer-font-size: 16px;
 
   --app-bg: rgba(22, 26, 34, 0.8);
   --app-border: rgba(255, 255, 255, 0.1);
@@ -90,10 +81,10 @@
 }
 
 :root[data-font-scale='small'] {
-  --answer-font-base: 13;
+  --answer-font-size: 13px;
 }
 :root[data-font-scale='large'] {
-  --answer-font-base: 19;
+  --answer-font-size: 19px;
 }
 
 :root[data-theme='light'] {
@@ -628,14 +619,13 @@ body {
   padding-top: 5px;
   border-top: 1px dashed var(--trans-border);
   color: var(--trans-text);
-  font-size: var(--transcript-trans-font-size);
+  font-size: 12px;
   line-height: 1.5;
   white-space: pre-wrap;
   user-select: text;
 }
 
 .bubble-text {
-  font-size: var(--transcript-font-size);
   line-height: 1.55;
   white-space: pre-wrap;
   word-break: break-word;
@@ -740,7 +730,7 @@ body {
   white-space: nowrap;
 }
 
-/* answer body follows ui.fontScale (P0-3) and the window width (see :root) */
+/* answer body follows ui.fontScale (P0-3); the transcript pane stays 13px */
 .turn-body {
   font-size: var(--answer-font-size);
   line-height: 1.62;
