@@ -20,7 +20,7 @@ import {
   type TranscriptSegment,
 } from '../shared/transcript';
 import { isLikelyOeaiPrompt, isLikelyQuestion } from '../shared/textHeuristics';
-import { captureKindForPlatform, themSourceFor, type ThemSource } from '../shared/platform';
+import { themSourceFor, type ThemSource } from '../shared/platform';
 import { CODEX_FAST_SERVICE_TIER, codexServiceTier } from '../shared/codex';
 import { deriveServiceHealth } from '../shared/healthState';
 import { LoopbackCapture } from './audio/loopbackCapture';
@@ -487,8 +487,8 @@ export function App() {
   }, [continuous, lastSeg?.id, lastSeg?.endTs]);
 
   // 对方 channel source (shared/platform themSourceFor): Windows = Electron
-  // system loopback; macOS = what the Mac plays (bundled helper, no mic) unless
-  // a specific input such as BlackHole is selected; Linux = selected input.
+  // system loopback; macOS = always what the Mac plays (bundled helper, never a
+  // microphone); Linux = the selected input.
   const themSourceRef = useRef<ThemSource | null>(null);
 
   const startThemSource = async (source: ThemSource, deviceId?: string) => {
@@ -921,18 +921,16 @@ export function App() {
           >
             {capturing ? t.titlebar.stop : t.titlebar.start}
           </button>
-          {captureKindForPlatform(window.mc.platform) === 'input' && (mics.length > 0 || window.mc.platform === 'darwin') && (
+          {/* only platforms whose 对方 comes from an ordinary input (Linux) pick a device */}
+          {themSourceFor(window.mc.platform) === 'input' && mics.length > 0 && (
             <InWindowSelect
               className="mic-select"
-              value={themSourceFor(window.mc.platform, settings?.audio.themDeviceId) === 'system' ? '' : settings?.audio.themDeviceId ?? ''}
+              value={settings?.audio.themDeviceId ?? ''}
               onChange={(value) => void selectThemInput(value)}
               ariaLabel={t.titlebar.themDeviceTitle}
               options={[
-                { value: '', label: window.mc.platform === 'darwin' ? t.titlebar.themSystemAudio : t.titlebar.themDeviceDefault },
-                // macOS: "default" is the built-in mic; '' already means system audio
-                ...mics
-                  .filter((m) => window.mc.platform !== 'darwin' || m.deviceId !== 'default')
-                  .map((m) => ({ value: m.deviceId, label: (m.label || t.titlebar.themDeviceDefault).slice(0, 14) })),
+                { value: '', label: t.titlebar.themDeviceDefault },
+                ...mics.map((m) => ({ value: m.deviceId, label: (m.label || t.titlebar.themDeviceDefault).slice(0, 14) })),
               ]}
             />
           )}

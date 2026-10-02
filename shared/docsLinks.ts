@@ -44,7 +44,7 @@ export const DOCS = {
   },
   /** macOS packaging is not shipped yet, so this guide is English-only */
   installMacos: `${BLOB}/docs/user/INSTALL_MACOS.en.md`,
-  /** developer-facing platform setup (python envs, BlackHole, stealth) */
+  /** developer-facing platform setup (python envs, system audio, stealth) */
   windowsSetup: {
     zh: `${BLOB}/docs/windows/SETUP.zh-CN.md`,
     en: `${BLOB}/docs/windows/SETUP.md`,

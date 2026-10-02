@@ -25,14 +25,15 @@ export type ThemSource = 'loopback' | 'system' | 'input';
 /**
  * Where the "对方" (other party) channel comes from.
  * - Windows: Electron's system loopback.
- * - macOS: the bundled system-audio helper (what the Mac plays), unless the
- *   user picked a specific input such as BlackHole. "default" means the
- *   built-in microphone on a Mac, so it is never used for 对方: that recorded
- *   the user's own voice even with 🎤 off.
+ * - macOS: always the bundled system-audio helper (what the Mac plays). An
+ *   input device is never used for 对方 there: "default" is the built-in
+ *   microphone, which recorded the user's own voice even with 🎤 off, and
+ *   virtual devices such as BlackHole are no longer needed. A saved
+ *   themDeviceId is ignored.
  * - Linux: the selected ordinary input.
  */
-export function themSourceFor(platform: string, themDeviceId?: string): ThemSource {
+export function themSourceFor(platform: string, _themDeviceId?: string): ThemSource {
   if (platform === 'win32') return 'loopback';
-  if (platform === 'darwin' && (!themDeviceId || themDeviceId === 'default')) return 'system';
+  if (platform === 'darwin') return 'system';
   return 'input';
 }

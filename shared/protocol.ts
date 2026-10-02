@@ -573,6 +573,10 @@ export const IPC = {
   systemAudioStop: 'system-audio:stop',
   /** main -> renderer: (message) the helper stopped by itself mid-capture */
   systemAudioFailed: 'system-audio:failed',
+  /** setup wizard level check: invoke start/stop; frames arrive as ArrayBuffer events */
+  systemAudioTestStart: 'system-audio:test-start',
+  systemAudioTestStop: 'system-audio:test-stop',
+  systemAudioTestFrame: 'system-audio:test-frame',
   /** invoke: (sessionId?) => TranscriptExportResult — write the meeting record now */
   transcriptExport: 'transcript:export',
   /** main -> renderer: TranscriptExportResult after an automatic export */

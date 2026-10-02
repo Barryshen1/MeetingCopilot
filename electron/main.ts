@@ -148,6 +148,8 @@ function bootstrap(): void {
   const sidecar = new FunasrSidecar();
   /** macOS 对方 channel: what the Mac plays, via the bundled helper */
   const systemAudio = new MacSystemAudio(systemAudioHelperPath(getResourceRoot()));
+  /** separate tap for the setup wizard's level check (never feeds the ASR) */
+  const systemAudioTest = new MacSystemAudio(systemAudioHelperPath(getResourceRoot()));
   const tray = new AppTray();
 
   /** main-process strings in the current UI language */
@@ -731,6 +733,16 @@ function bootstrap(): void {
       });
     });
     ipcMain.handle(IPC.systemAudioStop, () => systemAudio.stop());
+    ipcMain.handle(IPC.systemAudioTestStart, async (e) => {
+      if (process.platform !== 'darwin') throw new Error('system audio capture is macOS-only');
+      const target = e.sender;
+      await systemAudioTest.start({
+        onPcm: (frame) => { if (!target.isDestroyed()) target.send(IPC.systemAudioTestFrame, frame); },
+      });
+      // the wizard window can close mid-check
+      target.once('destroyed', () => void systemAudioTest.stop());
+    });
+    ipcMain.handle(IPC.systemAudioTestStop, () => systemAudioTest.stop());
     ipcMain.handle(IPC.transcriptPickFolder, async () => {
       nativeFileDialogsOpen++;
       try {
@@ -1439,6 +1451,7 @@ function bootstrap(): void {
     void asr.stop();
     void sidecar.stop();
     void systemAudio.stop();
+    void systemAudioTest.stop();
   });
 
   /**

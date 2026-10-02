@@ -12,7 +12,7 @@ This fork supports local Apple-silicon `.app` and ZIP builds. These builds use *
 | Build tools | Node.js ≥ 20, npm and Apple's Command Line Tools (`xcode-select -p` checks for them) |
 | AI answers | Installed, signed-in Codex CLI, or an OpenAI-compatible API provider |
 | Transcription | A cloud ASR key, or a separately configured local ASR environment and model |
-| Meeting/system audio | Audio routed to an input such as [BlackHole](https://github.com/ExistentialAudio/BlackHole); a microphone alone records your room |
+| Meeting/system audio | macOS 14.2+ records what the Mac plays directly; no extra device |
 
 ## Build the app
 
@@ -48,15 +48,9 @@ For development with hot reload, run `npm run dev`. Permissions granted to Elect
 
 ## Audio routing and permissions
 
-By default (other-party audio input = **System audio**, macOS 14.2+), the other party is recorded straight from what the Mac plays, without the microphone and without BlackHole; allow MeetingCopilot to record system audio when macOS asks on the first start. To use an input device such as BlackHole instead:
+The other party is recorded straight from what the Mac plays (macOS 14.2+), without the microphone and without a virtual device such as BlackHole. On the first **Start**, allow MeetingCopilot to record system audio when macOS asks, then check the audio level and transcript.
 
-1. Install [BlackHole](https://github.com/ExistentialAudio/BlackHole) separately.
-2. In **Audio MIDI Setup**, create a Multi-Output Device containing your headphones and BlackHole.
-3. Select that Multi-Output Device as the system output, or as the meeting app's output.
-4. In MeetingCopilot, select BlackHole as **Settings → Other-party audio input**.
-5. Press **Start**, allow microphone access if prompted, and check the audio level and transcript.
-
-Microphone permission covers audio input devices, including virtual ones. You may also enable a separate microphone channel for your own voice.
+Your own voice is recorded only through **🎤** in the title bar (microphone permission), labelled “Me”.
 
 Screenshot Q&A requires **Screen Recording** permission (called **Screen & System Audio Recording** on some macOS versions). Grant it under **System Settings → Privacy & Security** when requested, and quit and reopen MeetingCopilot if macOS asks. This permission alone does not configure meeting audio routing.
 

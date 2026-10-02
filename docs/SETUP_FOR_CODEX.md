@@ -1,12 +1,12 @@
 # 给 Codex 的 MeetingCopilot macOS 安装与配置指南
 
-这份文件供收到安装包的人交给**自己 Mac 上的 Codex**执行。适用范围：Apple 芯片、macOS 14 或更新版本。发送人会提供一个共享 ZIP，并另行告知这个 ZIP 的 SHA-256 校验值。解压后会直接看到 `MeetingCopilot.app`、本文件 `SETUP_FOR_CODEX.md` 和项目的 `LICENSE`。应用使用临时签名，未经过 Apple 公证；安装包不包含 Codex CLI、BlackHole、Python 或本地语音模型。
+这份文件供收到安装包的人交给**自己 Mac 上的 Codex**执行。适用范围：Apple 芯片、macOS 14 或更新版本。发送人会提供一个共享 ZIP，并另行告知这个 ZIP 的 SHA-256 校验值。解压后会直接看到 `MeetingCopilot.app`、本文件 `SETUP_FOR_CODEX.md` 和项目的 `LICENSE`。应用使用临时签名，未经过 Apple 公证；安装包不包含 Codex CLI、Python 或本地语音模型；录制电脑声音不需要 BlackHole。
 
 ## 先把任务交给你的 Codex
 
 把发送人提供的 ZIP 解压后，将解压出的本文件所在文件夹交给你自己的 Codex，并把下面这段话发给它：
 
-> 请阅读同文件夹的 `SETUP_FOR_CODEX.md`，在**我的 Mac** 上安装并配置 MeetingCopilot。先核对机器、安装包和现有 MeetingCopilot 数据，再安装应用；用**我的** Codex 登录配置 AI 回答，验证文字与安全测试画面的截图问答。配置阿里云新加坡 Qwen-Audio 3.1 流式语音转录时，先提醒我向发送人索取他愿意共享的通用 API Key 和对应工作空间的 WebSocket 地址，再指导我在本机 MeetingCopilot 设置中填写；不要让我把 Key 发到 Codex 聊天。如我要转录电脑里会议或视频的声音，再设置 BlackHole 音频路由并做实测。请保留我已有的应用数据，不导入发送人的 Codex 账号、会话或资料。需要我输入密码、登录或授予 macOS 权限时，让我在官方网站或系统窗口自行操作。最后报告每一项实际验证结果及未完成的步骤。
+> 请阅读同文件夹的 `SETUP_FOR_CODEX.md`，在**我的 Mac** 上安装并配置 MeetingCopilot。先核对机器、安装包和现有 MeetingCopilot 数据，再安装应用；用**我的** Codex 登录配置 AI 回答，验证文字与安全测试画面的截图问答。配置阿里云新加坡 Qwen-Audio 3.1 流式语音转录时，先提醒我向发送人索取他愿意共享的通用 API Key 和对应工作空间的 WebSocket 地址，再指导我在本机 MeetingCopilot 设置中填写；不要让我把 Key 发到 Codex 聊天。如我要转录电脑里会议或视频的声音，用电脑播放一段测试音频实测「对方」转录。请保留我已有的应用数据，不导入发送人的 Codex 账号、会话或资料。需要我输入密码、登录或授予 macOS 权限时，让我在官方网站或系统窗口自行操作。最后报告每一项实际验证结果及未完成的步骤。
 
 下面是 Codex 应按顺序执行的步骤。**“已安装”“已登录”“已授权”都要在这台 Mac 上验证，不能根据发送人的电脑推断。**
 
@@ -62,18 +62,18 @@ Codex CLI 只负责 AI 回答和图片理解，**不会把声音转成文字**�
 
 保存 Key 时如果 macOS 弹出“MeetingCopilot Safe Storage”钥匙串授权，由本人在系统窗口判断并操作。若应用提示密钥只能以弱加密方式保存，先暂停保存并告知发送人。**Key 只输入 MeetingCopilot 的设置框，不贴进 Codex 聊天或交付包。** 收件人使用发送人的阿里云工作空间与配额；转录音频会发送到该服务。发送人可为这台 Mac 单独创建一把 Key，方便日后停用。
 
-## 5. 如需转录电脑里的声音，配置 BlackHole
+## 5. 验证电脑声音的转录（无需 BlackHole）
 
-macOS 版从选定的**音频输入设备**采集“对方”的声音；单选 Mac 内置麦克风并不能稳定获取会议软件的系统输出。若要转录电脑里的会议或视频：
+macOS 版「对方」通道直接录制 **Mac 正在播放的声音**（需要 macOS 14.2+），不打开麦克风，也不需要 BlackHole 或多输出设备；本人的声音只通过标题栏 **🎤** 单独录制。
 
-1. 由本人从 [BlackHole 官方项目](https://github.com/ExistentialAudio/BlackHole)安装 **BlackHole 2ch**，完成系统所需的安装授权；若安装后设备未出现，重启 Mac。
-2. 在 macOS **音频 MIDI 设置**中创建“多输出设备”，勾选实际耳机/扬声器与 BlackHole 2ch；把实际播放设备设为主设备，并按需给 BlackHole 启用漂移校正。然后在“系统设置 → 声音 → 输出”中选这个多输出设备。参见 [Apple 的多输出设备步骤](https://support.apple.com/guide/audio-midi-setup/ams7c093f372/mac)。
-3. 在 MeetingCopilot **设置 → 对方音频输入**选 **BlackHole 2ch**，保存。让电脑播放一段没有隐私内容的中/英文测试音频，点主窗口 **▶ 开始**。首次录音时由本人授予 MeetingCopilot [麦克风权限](https://support.apple.com/guide/mac-help/mchla1b1e1fe/mac)（虚拟音频输入也使用这一权限）。观察音量与左栏转录内容；点 **■ 停止**后恢复原本的系统输出设备。
-4. 若无字幕，分别检查系统输出是否为多输出设备、MeetingCopilot 输入是否为 BlackHole、ASR 连接测试是否成功、音量是否非零。**AI 回答测试成功不代表 ASR 或音频路由成功。**
+1. 让电脑播放一段没有隐私内容的中/英文测试音频，点主窗口 **▶ 开始**。
+2. 首次开始时，macOS 会请本人允许 MeetingCopilot **录制系统音频**；由本人在系统窗口点允许。若误点了拒绝，到 **系统设置 → 隐私与安全性 → 屏幕与系统音频录制** 中打开 MeetingCopilot。
+3. 观察左栏是否出现「对方」转录，点 **■ 停止**。停止后会自动导出会议记录到 `~/Documents/MeetingCopilot 会议记录/`（只含转录）。
+4. 若无字幕，检查系统音频录制权限、ASR 连接测试是否成功、播放音量是否非零。**AI 回答测试成功不代表 ASR 成功。**
 
 ## 6. 收尾检查与隐私
 
-Codex 最后应逐项报告：安装包哈希与 Mac 兼容性；`.app` 固定安装位置；CLI 版本和登录状态（不要输出令牌）；所选模型及推理强度；中文界面和回答语言；文字回答；截图权限与测试；ASR 方案及连接测试；若启用 BlackHole，实际转录和已恢复的系统输出设备。未实测的项目写“未验证”，不要写“完成”。
+Codex 最后应逐项报告：安装包哈希与 Mac 兼容性；`.app` 固定安装位置；CLI 版本和登录状态（不要输出令牌）；所选模型及推理强度；中文界面和回答语言；文字回答；截图权限与测试；ASR 方案及连接测试；电脑声音的实际转录。未实测的项目写“未验证”，不要写“完成”。
 
 设置、会话和导入资料保存在**你自己 Mac** 的 `~/Library/Application Support/MeetingCopilot/`，Codex 登录由 Codex 自行管理。云端 ASR 会收到采集的音频；AI 回答服务会收到提问、所选参考资料和主动提交的截图。使用屏幕共享前要在目标会议软件做一次实际预览：macOS 的 ScreenCaptureKit 仍可能录到 MeetingCopilot 窗口，中文输入法候选栏、系统授权框和文件选择器也可能出现在共享画面中。**“隐身”不保证这些内容不可见。**
 

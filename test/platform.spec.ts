@@ -24,11 +24,11 @@ describe('platform defaults', () => {
     expect(captureKindForPlatform('linux')).toBe('input');
   });
 
-  it('records what the Mac plays for 对方 unless a specific input was chosen', () => {
+  it('always records what the Mac plays for 对方, never an input device', () => {
     expect(themSourceFor('darwin')).toBe('system');
     expect(themSourceFor('darwin', '')).toBe('system');
     expect(themSourceFor('darwin', 'default')).toBe('system'); // the built-in mic
-    expect(themSourceFor('darwin', 'blackhole-device-id')).toBe('input');
+    expect(themSourceFor('darwin', 'blackhole-device-id')).toBe('system'); // a stale saved choice
     expect(themSourceFor('win32', 'anything')).toBe('loopback');
     expect(themSourceFor('linux')).toBe('input');
   });

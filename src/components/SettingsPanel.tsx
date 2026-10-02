@@ -28,7 +28,6 @@ import {
 } from '../../shared/providerTestRequests';
 import { sanitizeApiKeyInput } from '../../shared/keyInput';
 import type { CodexSettings } from '../../shared/codex';
-import { themSourceFor } from '../../shared/platform';
 import { listMics } from '../audio/micCapture';
 import { useT } from '../i18n';
 import { ConnectionResult } from './providers/ConnectionResult';
@@ -549,15 +548,8 @@ export function SettingsPanel({
     ...devices.map((d) => ({ value: d.deviceId, label: d.label || d.deviceId })),
   ];
 
-  // macOS 对方: '' = what the Mac plays (no microphone); "default" would be the
-  // built-in mic, so it is not offered there
+  // macOS 对方 is always what the Mac plays (shared/platform themSourceFor)
   const isMac = window.mc.platform === 'darwin';
-  const themOptions = isMac
-    ? [
-        { value: '', label: t.settings.themSystemAudio },
-        ...devices.filter((d) => d.deviceId !== 'default').map((d) => ({ value: d.deviceId, label: d.label || d.deviceId })),
-      ]
-    : deviceOptions;
 
   // A disconnected saved device displays the system default until the device
   // returns, while the saved id remains in the draft unless the user changes it.
@@ -829,13 +821,19 @@ export function SettingsPanel({
       <div className="settings-section">{t.settings.audioSection}</div>
       <div className="settings-row">
         <label>{t.settings.themDevice}</label>
-        <InWindowSelect
-          value={isMac && themSourceFor('darwin', themDeviceId) === 'system' ? '' : visibleDeviceId(themDeviceId)}
-          ariaLabel={t.settings.themDevice}
-          onChange={setThemDeviceId}
-          options={themOptions}
-        />
-        {isMac && <span className="settings-inline-hint">{t.settings.themDeviceMacHint}</span>}
+        {isMac ? (
+          <>
+            <div className="key-status"><span className="tag">{t.settings.themSystemAudio}</span></div>
+            <span className="settings-inline-hint">{t.settings.themDeviceMacHint}</span>
+          </>
+        ) : (
+          <InWindowSelect
+            value={visibleDeviceId(themDeviceId)}
+            ariaLabel={t.settings.themDevice}
+            onChange={setThemDeviceId}
+            options={deviceOptions}
+          />
+        )}
       </div>
       <div className="settings-row">
         <label>{t.settings.micDevice}</label>

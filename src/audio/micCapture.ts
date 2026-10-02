@@ -1,7 +1,7 @@
 /**
  * Standard audio-input capture. Used for the user's microphone and, on
  * platforms without Electron loopback, for the other-party channel (including
- * virtual inputs such as BlackHole). Feeds the same 16 kHz PCM worklet.
+ * virtual inputs). Feeds the same 16 kHz PCM worklet.
  */
 export class MicCapture {
   private ctx: AudioContext | null = null;

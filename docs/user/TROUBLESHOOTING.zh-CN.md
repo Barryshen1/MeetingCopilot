@@ -41,7 +41,7 @@ English version: [TROUBLESHOOTING.en.md](TROUBLESHOOTING.en.md)
 4. **引擎起来了吗**：看左下角状态栏。一直显示「模型加载中…」说明引擎还没就绪，点状态栏的服务状态芯片打开「服务状态」面板，看是哪一项没连上。
 5. **重新检测**：也可以 设置 →「重新运行配置向导」，走到第 4 步用带音量条的检测卡片确认。
 
-macOS 没有系统回环采集，必须先装 BlackHole 之类的虚拟音频设备，并在 设置 →「对方音频输入」里选中它，详见 [docs/macos/SETUP.zh-CN.md](../macos/SETUP.zh-CN.md)。
+macOS 上「对方」直接录制 Mac 正在播放的声音（macOS 14.2+），不使用输入设备。若一直没有字，到「系统设置 → 隐私与安全性 → 屏幕与系统音频录制」里允许 MeetingCopilot，再点一次「▶ 开始」，详见 [docs/macos/SETUP.zh-CN.md](../macos/SETUP.zh-CN.md)。
 
 ## 三、转写出字，但 AI 不回答
 
