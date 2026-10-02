@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import type { KbSlot, ScreenshotMode, StoredSession } from '../../shared/protocol';
 import { useT } from '../i18n';
+import { nextStick } from '../../shared/stickToBottom';
 import { InWindowSelect } from './InWindowSelect';
 
 export type TurnKind = 'segment' | 'continuous' | 'free' | 'translate' | 'vision' | 'oeai';
@@ -95,14 +96,26 @@ export function AnswerSession({
   const [nameDraft, setNameDraft] = useState('');
   const currentName = sessions.find((s) => s.id === currentId)?.name ?? '';
 
+  const lastTop = useRef(0);
+  const turnCount = useRef(turns.length);
+
   useEffect(() => {
-    if (stick.current && boxRef.current) boxRef.current.scrollTop = boxRef.current.scrollHeight;
+    const el = boxRef.current;
+    if (!el) return;
+    // a new question/answer always comes into view, even after reading back
+    if (turns.length > turnCount.current) stick.current = true;
+    turnCount.current = turns.length;
+    if (stick.current) {
+      el.scrollTop = el.scrollHeight;
+      lastTop.current = el.scrollTop;
+    }
   });
 
   const onScroll = () => {
     const el = boxRef.current;
     if (!el) return;
-    stick.current = el.scrollHeight - el.scrollTop - el.clientHeight < 48;
+    stick.current = nextStick(stick.current, lastTop.current, el);
+    lastTop.current = el.scrollTop;
   };
 
   const submit = () => {

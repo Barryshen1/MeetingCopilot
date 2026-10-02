@@ -261,6 +261,13 @@ export interface SettingsFile {
     /** chosen mic device id ('' / undefined = system default) */
     micDeviceId?: string;
   };
+  /** meeting records: the transcript only, never AI answers or translations */
+  export: {
+    /** write the record when ■ 停止 ends a capture (default on) */
+    autoExport: boolean;
+    /** absolute folder; undefined = ~/Documents/MeetingCopilot 会议记录 */
+    folder?: string;
+  };
 }
 
 /** What the renderer is allowed to see (no secrets). */
@@ -333,6 +340,8 @@ export interface PublicSettings {
     trayNoticeShown: boolean;
   };
   audio: { themDeviceId?: string; micEnabled: boolean; micDeviceId?: string };
+  /** folder is always resolved to an absolute path for display */
+  export: { autoExport: boolean; folder: string };
 }
 
 /**
@@ -391,6 +400,19 @@ export interface SettingsPatch {
     trayNoticeShown?: boolean;
   };
   audio?: { themDeviceId?: string; micEnabled?: boolean; micDeviceId?: string };
+  /** folder: '' resets to the default folder */
+  export?: { autoExport?: boolean; folder?: string };
+}
+
+/** Result of writing a meeting record (main -> renderer). */
+export interface TranscriptExportResult {
+  ok: boolean;
+  /** absolute file path when ok */
+  path?: string;
+  /** 'EMPTY' = nothing was said yet; otherwise an OS error message */
+  error?: string;
+  /** true when written automatically after ■ 停止 */
+  auto?: boolean;
 }
 
 // ---------- ASR events (main -> renderer) ----------
@@ -545,6 +567,20 @@ export const IPC = {
   /** renderer -> main: capture lifecycle */
   captureStarted: 'capture:started',
   captureStopped: 'capture:stopped',
+  /** invoke: () => void — macOS: start capturing what the Mac plays as 对方 (throws with the reason) */
+  systemAudioStart: 'system-audio:start',
+  /** invoke: () => void */
+  systemAudioStop: 'system-audio:stop',
+  /** main -> renderer: (message) the helper stopped by itself mid-capture */
+  systemAudioFailed: 'system-audio:failed',
+  /** invoke: (sessionId?) => TranscriptExportResult — write the meeting record now */
+  transcriptExport: 'transcript:export',
+  /** main -> renderer: TranscriptExportResult after an automatic export */
+  transcriptExported: 'transcript:exported',
+  /** invoke: () => PublicSettings | null — choose the meeting-record folder */
+  transcriptPickFolder: 'transcript:pick-folder',
+  /** send: (path?) — reveal a record (or the folder) in Finder / Explorer */
+  transcriptReveal: 'transcript:reveal',
   /** main -> renderer: AsrEvent */
   asrEvent: 'asr:event',
   /** invoke: () => {ready, status} — pull the last ready/status AsrEvents.

@@ -18,6 +18,7 @@ import {
   type SessionsFile,
   type SettingsPatch,
   type TrayCommandPayload,
+  type TranscriptExportResult,
 } from '../shared/protocol';
 
 export interface McApi {
@@ -44,6 +45,19 @@ export interface McApi {
   sendPcm(buf: ArrayBuffer, captureTs: number, channel: 'them' | 'me'): void;
   captureStarted(): void;
   captureStopped(): void;
+  /** macOS: start the 对方 channel from what the Mac plays (no microphone) */
+  systemAudioStart(): Promise<void>;
+  systemAudioStop(): Promise<void>;
+  /** the system-audio helper stopped on its own during a capture */
+  onSystemAudioFailed(cb: (message: string) => void): () => void;
+  /** write the current (or given) session's meeting record now */
+  exportTranscript(sessionId?: string): Promise<TranscriptExportResult>;
+  /** choose the meeting-record folder; null when cancelled */
+  pickExportFolder(): Promise<PublicSettings | null>;
+  /** reveal a written record, or open the records folder */
+  revealExport(path?: string): void;
+  /** fires after ■ 停止 wrote the meeting record automatically */
+  onTranscriptExported(cb: (result: TranscriptExportResult) => void): () => void;
   translate(text: string): Promise<string>;
   onAsrEvent(cb: (ev: AsrEvent) => void): () => void;
   /** pull the last ready/status events (call AFTER onAsrEvent subscription) */
@@ -114,6 +128,21 @@ const api: McApi = {
   sendPcm: (buf, captureTs, channel) => ipcRenderer.send(IPC.capturePcm, buf, captureTs, channel),
   captureStarted: () => ipcRenderer.send(IPC.captureStarted),
   captureStopped: () => ipcRenderer.send(IPC.captureStopped),
+  systemAudioStart: () => ipcRenderer.invoke(IPC.systemAudioStart),
+  systemAudioStop: () => ipcRenderer.invoke(IPC.systemAudioStop),
+  onSystemAudioFailed: (cb) => {
+    const listener = (_e: Electron.IpcRendererEvent, message: string) => cb(message);
+    ipcRenderer.on(IPC.systemAudioFailed, listener);
+    return () => ipcRenderer.removeListener(IPC.systemAudioFailed, listener);
+  },
+  exportTranscript: (sessionId) => ipcRenderer.invoke(IPC.transcriptExport, sessionId),
+  pickExportFolder: () => ipcRenderer.invoke(IPC.transcriptPickFolder),
+  revealExport: (path) => ipcRenderer.send(IPC.transcriptReveal, path),
+  onTranscriptExported: (cb) => {
+    const listener = (_e: Electron.IpcRendererEvent, result: TranscriptExportResult) => cb(result);
+    ipcRenderer.on(IPC.transcriptExported, listener);
+    return () => ipcRenderer.removeListener(IPC.transcriptExported, listener);
+  },
   translate: (text) => ipcRenderer.invoke(IPC.translateText, text),
   onAsrEvent: (cb) => {
     const listener = (_e: Electron.IpcRendererEvent, ev: AsrEvent) => cb(ev);

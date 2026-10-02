@@ -15,7 +15,7 @@ import {
   session,
   shell,
 } from 'electron';
-import { mkdirSync, readFileSync, writeFileSync } from 'fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs';
 import { release } from 'os';
 import { join } from 'path';
 import {
@@ -38,6 +38,8 @@ import { SETUP_READY_MARKER, createSetupWindow } from './setupWindow';
 import { AppTray, trayIconPath } from './tray';
 import { revealAppWindow } from './windowReveal';
 import { applyWindowZoom } from './windowZoom';
+import { writeMeetingRecord } from './meetingRecords';
+import { MacSystemAudio, systemAudioHelperPath } from './macSystemAudio';
 import { isRendererCommand, type TrayCommand, type TrayMenuState } from '../shared/trayMenu';
 import { KnowledgeStore } from './knowledge';
 import { SessionStore } from './sessions';
@@ -59,7 +61,7 @@ import {
   buildVisionMessages,
   clampMemo,
 } from './llm/prompts';
-import type { AppInfo, KbSlot, PickedDocument, PublicSettings, ScreenshotMode, SessionAttachment, UiLang } from '../shared/protocol';
+import type { AppInfo, KbSlot, TranscriptExportResult, PickedDocument, PublicSettings, ScreenshotMode, SessionAttachment, UiLang } from '../shared/protocol';
 import {
   IPC,
   type AsrEvent,
@@ -137,7 +139,15 @@ function bootstrap(): void {
   /** renderer capture lifecycle; the tray menu and the diagnostics report read it */
   let capturing = false;
   const asr = new AsrHost();
+  /** meeting-record export hooks, wired once settings and sessions exist */
+  let exportMeetingRecord: (sessionId?: string | null, auto?: boolean) => TranscriptExportResult =
+    () => ({ ok: false, error: 'EMPTY' });
+  let cancelAutoExport = (): void => {};
+  let noteSegmentForAutoExport = (): void => {};
+  let flushAutoExport = (): void => {};
   const sidecar = new FunasrSidecar();
+  /** macOS 对方 channel: what the Mac plays, via the bundled helper */
+  const systemAudio = new MacSystemAudio(systemAudioHelperPath(getResourceRoot()));
   const tray = new AppTray();
 
   /** main-process strings in the current UI language */
@@ -562,7 +572,12 @@ function bootstrap(): void {
   app.whenReady().then(() => {
     // users who never chose a UI language get their OS language (zh → zh, else en)
     osLang = app.getLocale().toLowerCase().startsWith('zh') ? 'zh' : 'en';
-    settings = new SettingsStore(join(app.getPath('userData'), 'settings.json'), cipher(), osLang);
+    settings = new SettingsStore(
+      join(app.getPath('userData'), 'settings.json'),
+      cipher(),
+      osLang,
+      join(app.getPath('documents'), 'MeetingCopilot 会议记录'),
+    );
     knowledge = new KnowledgeStore(join(app.getPath('userData'), 'knowledge.md'));
     sessionStore = new SessionStore(join(app.getPath('userData'), 'sessions.json'));
     const codexWorkspace = join(app.getPath('userData'), 'codex-workspace');
@@ -644,12 +659,111 @@ function bootstrap(): void {
       },
     );
 
+    // ---- meeting records: transcript only, written after ■ 停止 ----
+    // The last utterance is still being finalised when capture stops
+    // (asr.flush()), and the renderer persists sessions 400 ms after each
+    // change. So wait until the transcript has been quiet for a moment, then
+    // write what sessions.json holds. Re-arms on every late segment.
+    const AUTO_EXPORT_QUIET_MS = 3_000;
+    const AUTO_EXPORT_MAX_WAIT_MS = 20_000;
+    let autoExportTimer: NodeJS.Timeout | null = null;
+    let autoExportDeadline = 0;
+    let autoExportSession: string | null = null;
+
+    exportMeetingRecord = (sessionId?: string | null, auto = false): TranscriptExportResult => {
+      const result = writeMeetingRecord(
+        settings.exportFolder(),
+        sessionStore.load(),
+        sessionId,
+        settings.data.ui.lang ?? osLang,
+      );
+      if (result.ok) console.log(`[export] meeting record ${auto ? '(auto) ' : ''}written`);
+      else if (result.error !== 'EMPTY') {
+        console.warn('[export] meeting record failed:', result.error);
+        recordDiagnosticError('export', result.error ?? 'unknown');
+      }
+      return { ...result, auto };
+    };
+    const runAutoExport = () => {
+      if (autoExportTimer) clearTimeout(autoExportTimer);
+      autoExportTimer = null;
+      if (settings.data.export.autoExport === false) return;
+      const result = exportMeetingRecord(autoExportSession, true);
+      if (result.error !== 'EMPTY') win?.webContents.send(IPC.transcriptExported, result);
+    };
+    cancelAutoExport = () => {
+      if (autoExportTimer) clearTimeout(autoExportTimer);
+      autoExportTimer = null;
+    };
+    const armAutoExport = (delay: number) => {
+      if (autoExportTimer) clearTimeout(autoExportTimer);
+      autoExportTimer = setTimeout(runAutoExport, Math.max(0, Math.min(delay, autoExportDeadline - Date.now())));
+    };
+    function scheduleAutoExport(): void {
+      if (settings.data.export.autoExport === false) return;
+      autoExportSession = sessionStore.load().currentId;
+      autoExportDeadline = Date.now() + AUTO_EXPORT_MAX_WAIT_MS;
+      armAutoExport(AUTO_EXPORT_QUIET_MS);
+    }
+    noteSegmentForAutoExport = () => {
+      if (autoExportTimer) armAutoExport(AUTO_EXPORT_QUIET_MS);
+    };
+    flushAutoExport = () => {
+      // quitting: a pending export runs now; an open capture counts as ended
+      if (autoExportTimer || (capturing && settings.data.export.autoExport !== false)) {
+        if (!autoExportTimer) autoExportSession = sessionStore.load().currentId;
+        runAutoExport();
+      }
+    };
+
+    ipcMain.handle(IPC.transcriptExport, (_e, sessionId?: string) => exportMeetingRecord(sessionId));
+
+    // ---- macOS: 对方 = what the Mac plays (no microphone) ----
+    ipcMain.handle(IPC.systemAudioStart, async () => {
+      if (process.platform !== 'darwin') throw new Error('system audio capture is macOS-only');
+      await systemAudio.start({
+        onPcm: (frame, ts) => asr.sendPcm(frame, ts, 'them'),
+        onFailure: (message) => {
+          console.warn('[sysaudio] stopped:', message);
+          recordDiagnosticError('system-audio', message);
+          win?.webContents.send(IPC.systemAudioFailed, message);
+        },
+      });
+    });
+    ipcMain.handle(IPC.systemAudioStop, () => systemAudio.stop());
+    ipcMain.handle(IPC.transcriptPickFolder, async () => {
+      nativeFileDialogsOpen++;
+      try {
+        const r = await dialog.showOpenDialog({
+          title: T().exportFolderTitle,
+          defaultPath: settings.exportFolder(),
+          properties: ['openDirectory', 'createDirectory'],
+        });
+        if (r.canceled || !r.filePaths[0]) return null;
+        settings.applyPatch({ export: { folder: r.filePaths[0] } });
+        return publicSettings();
+      } finally {
+        nativeFileDialogsOpen--;
+      }
+    });
+    ipcMain.on(IPC.transcriptReveal, (_e, path?: string) => {
+      const folder = settings.exportFolder();
+      // only files inside the records folder; anything else opens the folder
+      if (typeof path === 'string' && path.startsWith(folder) && existsSync(path)) {
+        shell.showItemInFolder(path);
+        return;
+      }
+      mkdirSync(folder, { recursive: true });
+      void shell.openPath(folder);
+    });
+
     // last-known capture lifecycle, for the diagnostics report only
     let lastCaptureStartedAt: string | undefined;
     let lastCaptureStoppedAt: string | undefined;
 
     ipcMain.on(IPC.captureStarted, () => {
       console.log('[main] capture started');
+      cancelAutoExport();
       lastCaptureStartedAt = new Date().toISOString();
       capturing = true;
       refreshTray(); // 开始转写 -> 停止转写
@@ -672,6 +786,7 @@ function bootstrap(): void {
         keepWarmTimer = null;
       }
       asr.flush();
+      scheduleAutoExport();
     });
     const makePythonProbe = () => new LocalPythonProbe(() =>
       resolveConfiguredPython(
@@ -1264,6 +1379,7 @@ function bootstrap(): void {
       if (ev.kind === 'segment') {
         const e2e = ev.timings.inferEndTs - ev.timings.speechEndTs;
         console.log(`[asr] #${ev.id} (${ev.lang ?? '?'}, ${ev.audioMs}ms audio, e2e ${e2e}ms) ${ev.text}`);
+        noteSegmentForAutoExport(); // a late final segment after ■ 停止
       } else if (ev.kind === 'ready') {
         console.log(`[asr] ready ep=${ev.ep} load=${ev.loadMs}ms warm=${ev.warmMs}ms gpuSuspect=${ev.gpuSuspect}`);
         if (process.env.MC_E2E_QUIT_ON_ASR_READY === '1') {
@@ -1315,12 +1431,14 @@ function bootstrap(): void {
   });
 
   app.on('before-quit', () => {
+    try { flushAutoExport(); } catch (e) { console.warn('[export] on quit failed:', (e as Error).message); }
     codex?.dispose();
     quitting = true;
     globalShortcut.unregisterAll();
     tray.destroy();
     void asr.stop();
     void sidecar.stop();
+    void systemAudio.stop();
   });
 
   /**

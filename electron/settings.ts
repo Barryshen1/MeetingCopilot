@@ -98,6 +98,9 @@ export function defaultSettings(platform: string = process.platform): SettingsFi
     audio: {
       micEnabled: false,
     },
+    export: {
+      autoExport: true,
+    },
   };
 }
 
@@ -128,6 +131,7 @@ function mergeWithDefaults(raw: Partial<SettingsFile>, defaults: SettingsFile): 
     },
     ui: { ...defaults.ui, ...raw.ui },
     audio: { ...defaults.audio, ...raw.audio },
+    export: { ...defaults.export, ...raw.export },
   };
 }
 
@@ -209,6 +213,8 @@ export class SettingsStore {
     private readonly cipher: SecretCipher,
     /** UI language when the user never chose one (derived from OS locale) */
     private readonly fallbackUiLang: UiLang = 'zh',
+    /** where meeting records go when the user never picked a folder */
+    private readonly defaultExportFolder = '',
   ) {
     const loaded = this.loadFromDisk();
     this.data = loaded.data;
@@ -367,6 +373,12 @@ export class SettingsStore {
     }
     if (patch.ui) Object.assign(this.data.ui, stripUndefined(patch.ui));
     if (patch.audio) Object.assign(this.data.audio, stripUndefined(patch.audio));
+    if (patch.export) {
+      const { folder, ...rest } = patch.export;
+      Object.assign(this.data.export, stripUndefined(rest));
+      // '' returns to the default folder
+      if (folder !== undefined) this.data.export.folder = folder.trim() || undefined;
+    }
     this.save();
   }
 
@@ -486,7 +498,13 @@ export class SettingsStore {
         micEnabled: d.audio.micEnabled,
         micDeviceId: d.audio.micDeviceId,
       },
+      export: { autoExport: d.export.autoExport !== false, folder: this.exportFolder() },
     };
+  }
+
+  /** Absolute folder for meeting records (the user's choice or the default). */
+  exportFolder(): string {
+    return this.data.export.folder?.trim() || this.defaultExportFolder;
   }
 
   getLlmApiKey(): string | undefined {

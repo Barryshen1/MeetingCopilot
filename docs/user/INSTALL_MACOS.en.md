@@ -48,7 +48,7 @@ For development with hot reload, run `npm run dev`. Permissions granted to Elect
 
 ## Audio routing and permissions
 
-The macOS app uses an ordinary audio input for the other party's speech. To route meeting/system audio through BlackHole:
+By default (other-party audio input = **System audio**, macOS 14.2+), the other party is recorded straight from what the Mac plays, without the microphone and without BlackHole; allow MeetingCopilot to record system audio when macOS asks on the first start. To use an input device such as BlackHole instead:
 
 1. Install [BlackHole](https://github.com/ExistentialAudio/BlackHole) separately.
 2. In **Audio MIDI Setup**, create a Multi-Output Device containing your headphones and BlackHole.
@@ -61,6 +61,10 @@ Microphone permission covers audio input devices, including virtual ones. You ma
 Screenshot Q&A requires **Screen Recording** permission (called **Screen & System Audio Recording** on some macOS versions). Grant it under **System Settings → Privacy & Security** when requested, and quit and reopen MeetingCopilot if macOS asks. This permission alone does not configure meeting audio routing.
 
 Full routing and local Python setup: [macOS setup](../macos/SETUP.md).
+
+## Meeting records
+
+After **■ Stop**, MeetingCopilot exports the session's transcript as Markdown, by default to `~/Documents/MeetingCopilot 会议记录/`, named like `2026-10-02 1503 Meeting name.md`. A record contains the transcript only (time, speaker, text), never AI answers or translations. Stopping the same session again overwrites the same file. The **Export** button in the transcript pane exports at any time; Settings → Meeting records turns automatic export off or changes the folder.
 
 ## Data and limitations
 
