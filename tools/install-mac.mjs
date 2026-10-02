@@ -18,7 +18,7 @@
  * ZIP (`ditto -c -k --keepParent`) beforehand if you need a rollback.
  */
 import { execFileSync } from 'node:child_process';
-import { existsSync, renameSync, rmSync } from 'node:fs';
+import { existsSync, mkdirSync, renameSync, rmSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -34,8 +34,12 @@ const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const source = join(root, 'release', 'mac-arm64', 'MeetingCopilot.app');
 const installDir = resolve(process.env.MC_INSTALL_DIR || '/Applications');
 const target = join(installDir, 'MeetingCopilot.app');
-// Not ending in ".app", so neither copy is a bundle while the swap is in flight.
-const staging = `${target}.installing`;
+// Stage a real .app inside a ".noindex" folder. Spotlight skips that folder,
+// and once the bundle is renamed into place it is indexed as ONE app. (A
+// staging name without ".app" made Spotlight index the four nested
+// "MeetingCopilot Helper" apps as separate search results.)
+const stagingDir = join(installDir, '.MeetingCopilot-install.noindex');
+const staging = join(stagingDir, 'MeetingCopilot.app');
 const previous = `${target}.replaced`;
 
 // lsregister -dump prints the whole LaunchServices database (tens of MB).
@@ -55,7 +59,8 @@ for (const path of [target, source]) {
   }
 }
 
-rmSync(staging, { recursive: true, force: true });
+rmSync(stagingDir, { recursive: true, force: true });
+mkdirSync(stagingDir, { recursive: true });
 rmSync(previous, { recursive: true, force: true });
 console.log(`Copying to ${target} ...`);
 run('ditto', [source, staging]);
@@ -67,6 +72,8 @@ try {
 } catch (error) {
   if (existsSync(previous)) renameSync(previous, target);
   throw error;
+} finally {
+  rmSync(stagingDir, { recursive: true, force: true });
 }
 rmSync(previous, { recursive: true, force: true });
 
@@ -76,8 +83,8 @@ rmSync(source, { recursive: true, force: true });
 console.log(`Installed ${target}; removed the build copy ${source}.`);
 
 // LaunchServices keeps entries for bundles that no longer exist (deleted
-// copies, and the helper apps it saw inside the staging folder during the
-// copy). Forget every MeetingCopilot path that is gone.
+// copies, and helper apps seen inside a staging folder). Forget every
+// MeetingCopilot path that is gone.
 try {
   const gone = run(LSREGISTER, ['-dump'])
     .split('\n')
