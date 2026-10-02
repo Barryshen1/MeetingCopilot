@@ -48,7 +48,7 @@ npm start
 
 ## 音频路由与权限
 
-macOS 版本通过普通音频输入采集对方发言。通过 BlackHole 采集会议 / 系统声音的方法：
+默认情况下（「对方音频输入」= **系统声音**，macOS 14.2+），对方发言直接从 Mac 正在播放的声音录制，不经过麦克风，也不需要 BlackHole；第一次开始时按提示允许 MeetingCopilot 录制系统音频。若想改用 BlackHole 等输入设备采集会议 / 系统声音：
 
 1. 单独安装 [BlackHole](https://github.com/ExistentialAudio/BlackHole)。
 2. 在 **音频 MIDI 设置** 中建立同时包含耳机和 BlackHole 的多输出设备。
@@ -61,6 +61,10 @@ macOS 版本通过普通音频输入采集对方发言。通过 BlackHole 采集
 截图问答需要 **屏幕录制** 权限（部分 macOS 版本称为 **屏幕与系统音频录制**）。按提示在 **系统设置 → 隐私与安全性** 中授权；如果系统要求，退出并重新打开 MeetingCopilot。这项权限本身不会配置会议音频路由。
 
 详细路由及本地 Python 配置见 [macOS 配置指南](../macos/SETUP.zh-CN.md)。
+
+## 会议记录
+
+点 **■ 停止** 后，MeetingCopilot 会把本会话的转录导出成 Markdown，默认保存在 `~/Documents/MeetingCopilot 会议记录/`，文件名形如 `2026-10-02 1503 会议名.md`。会议记录只包含转录（时间、说话人、原文），不包含 AI 回复和翻译。同一会话再次停止时会覆盖同一个文件。转录栏的 **导出** 按钮可随时手动导出；在 设置 → 会议记录 中可以关闭自动导出或更改保存位置。
 
 ## 数据与限制
 

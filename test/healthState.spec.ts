@@ -58,6 +58,7 @@ function settings(over: Partial<PublicSettings> = {}): PublicSettings {
       trayNoticeShown: false,
     },
     audio: { micEnabled: false },
+    export: { autoExport: true, folder: '/tmp/records' },
     ...over,
   };
 }

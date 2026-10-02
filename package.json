@@ -12,7 +12,8 @@
   "private": true,
   "scripts": {
     "dev": "electron-vite dev",
-    "build": "electron-vite build",
+    "build": "electron-vite build && node tools/build-mac-audio.mjs",
+    "build:mac-audio": "node tools/build-mac-audio.mjs",
     "start": "electron-vite preview",
     "postinstall": "patch-package",
     "test": "vitest run",

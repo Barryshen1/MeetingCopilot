@@ -9,6 +9,7 @@ import type {
   ScreenshotMode,
   SessionAttachment,
   StoredSession,
+  TranscriptExportResult,
 } from '../shared/protocol';
 import { MAX_SESSION_ATTACHMENTS } from '../shared/protocol';
 import {
@@ -19,7 +20,7 @@ import {
   type TranscriptSegment,
 } from '../shared/transcript';
 import { isLikelyOeaiPrompt, isLikelyQuestion } from '../shared/textHeuristics';
-import { captureKindForPlatform } from '../shared/platform';
+import { captureKindForPlatform, themSourceFor, type ThemSource } from '../shared/platform';
 import { CODEX_FAST_SERVICE_TIER, codexServiceTier } from '../shared/codex';
 import { deriveServiceHealth } from '../shared/healthState';
 import { LoopbackCapture } from './audio/loopbackCapture';
@@ -394,6 +395,7 @@ export function App() {
     });
 
     const offShot = window.mc.onShotHotkey(() => askShot(''));
+    const offExported = window.mc.onTranscriptExported((result) => showExportResult(result));
 
     window.__mcAutoStart = () => void startCapture();
     // visual-QA hooks (MC_MAIN_SHOT in electron/main.ts): open a panel from the
@@ -404,9 +406,35 @@ export function App() {
       off();
       offLlm();
       offShot();
+      offExported();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // ---- meeting records (transcript only) ----
+  const [exportNotice, setExportNotice] = useState<{ text: string; path?: string; error?: boolean } | null>(null);
+  const exportNoticeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const showExportResult = useCallback((result: TranscriptExportResult) => {
+    const t = tRef.current.transcript;
+    const file = result.path ? result.path.split(/[\\/]/).pop() ?? result.path : '';
+    const notice = result.ok
+      ? { text: result.auto ? t.autoExported(file) : t.exported(file), path: result.path }
+      : result.error === 'EMPTY'
+        ? { text: t.exportEmpty }
+        : { text: t.exportFailed(result.error ?? ''), error: true };
+    setExportNotice(notice);
+    if (exportNoticeTimer.current) clearTimeout(exportNoticeTimer.current);
+    if (!notice.error) exportNoticeTimer.current = setTimeout(() => setExportNotice(null), 15_000);
+  }, []);
+  const exportTranscriptNow = useCallback(async () => {
+    // persist the latest transcript first; main exports what sessions.json holds
+    window.mc.saveSessions({ sessions: sessionsRef.current, currentId: currentIdRef.current });
+    try {
+      showExportResult(await window.mc.exportTranscript(currentIdRef.current));
+    } catch (e) {
+      showExportResult({ ok: false, error: (e as Error).message });
+    }
+  }, [showExportResult]);
 
   // ---- persist sessions (debounced) ----
   useEffect(() => {
@@ -458,41 +486,69 @@ export function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [continuous, lastSeg?.id, lastSeg?.endTs]);
 
-  // Windows: Electron system loopback. macOS/Linux: selected ordinary input
-  // (typically a virtual audio device for meeting/system audio).
+  // 对方 channel source (shared/platform themSourceFor): Windows = Electron
+  // system loopback; macOS = what the Mac plays (bundled helper, no mic) unless
+  // a specific input such as BlackHole is selected; Linux = selected input.
+  const themSourceRef = useRef<ThemSource | null>(null);
+
+  const startThemSource = async (source: ThemSource, deviceId?: string) => {
+    const send = (buf: ArrayBuffer, ts: number) => window.mc.sendPcm(buf, ts, 'them');
+    if (source === 'system') {
+      await window.mc.systemAudioStart(); // main feeds the ASR engine directly
+    } else if (source === 'input') {
+      await themInputRef.current!.start(deviceId, send, { audioProcessing: false });
+      void listMics().then(setMics).catch(() => undefined);
+    } else {
+      await loopbackRef.current!.start(send);
+    }
+    themSourceRef.current = source;
+  };
+
+  const stopThemSource = async () => {
+    const source = themSourceRef.current;
+    themSourceRef.current = null;
+    if (source === 'system') await window.mc.systemAudioStop();
+    else if (source === 'input') await themInputRef.current!.stop();
+    else if (source === 'loopback') await loopbackRef.current!.stop();
+  };
+
   const startCapture = useCallback(async () => {
-    const inputMode = captureKindForPlatform(window.mc.platform) === 'input';
-    const cap = inputMode ? themInputRef.current! : loopbackRef.current!;
-    if (cap.running) return;
+    if (themSourceRef.current) return;
+    const deviceId = settingsRef.current?.audio.themDeviceId;
+    const source = themSourceFor(window.mc.platform, deviceId);
     try {
-      if (inputMode) {
-        await themInputRef.current!.start(
-          settingsRef.current?.audio.themDeviceId,
-          (buf, ts) => window.mc.sendPcm(buf, ts, 'them'),
-          { audioProcessing: false },
-        );
-        void listMics().then(setMics).catch(() => undefined);
-      } else {
-        await loopbackRef.current!.start((buf, ts) => window.mc.sendPcm(buf, ts, 'them'));
-      }
+      await startThemSource(source, deviceId);
       window.mc.captureStarted();
       setCapturing(true);
       prewarm(true); // ▶ = the meeting starts — build the KV prefix cache now
     } catch (e) {
-      setAsr((s) => ({ ...s, lastError: tRef.current.app.captureStartFail((e as Error).message) }));
+      const message = (e as Error).message.replace(/^Error invoking remote method '[^']+': (Error: )?/, '');
+      setAsr((s) => ({
+        ...s,
+        lastError: source === 'system'
+          ? tRef.current.app.systemAudioFail(message)
+          : tRef.current.app.captureStartFail(message),
+      }));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const stopCapture = useCallback(async () => {
-    const cap =
-      captureKindForPlatform(window.mc.platform) === 'input'
-        ? themInputRef.current!
-        : loopbackRef.current!;
-    await cap.stop();
+    await stopThemSource();
     window.mc.captureStopped();
     setCapturing(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // the system-audio helper can die mid-meeting (output device unplugged,
+  // permission revoked): end the capture visibly instead of going silent
+  useEffect(() => window.mc.onSystemAudioFailed((message) => {
+    if (themSourceRef.current !== 'system') return;
+    themSourceRef.current = null;
+    window.mc.captureStopped();
+    setCapturing(false);
+    setAsr((s) => ({ ...s, lastError: tRef.current.app.systemAudioFail(message) }));
+  }), []);
 
   // 🎤 独立麦克风采集：只转麦克风(我)，与系统声音互不影响，按钮直接控制起停
   const toggleMicCapture = useCallback(async () => {
@@ -607,21 +663,17 @@ export function App() {
     const updated = await window.mc.setSettings({ audio: { themDeviceId: deviceId || undefined } });
     setSettings(updated);
     settingsRef.current = updated;
-    const input = themInputRef.current!;
-    if (input.running) {
-      await input.stop();
-      await input
-        .start(
-          deviceId || undefined,
-          (buf, ts) => window.mc.sendPcm(buf, ts, 'them'),
-          { audioProcessing: false },
-        )
+    if (themSourceRef.current) {
+      // restart the 对方 channel on the newly chosen source, same capture run
+      await stopThemSource();
+      await startThemSource(themSourceFor(window.mc.platform, deviceId || undefined), deviceId || undefined)
         .catch((e) => {
           window.mc.captureStopped();
           setCapturing(false);
           setAsr((s) => ({ ...s, lastError: tRef.current.app.themInputSwitchFail((e as Error).message) }));
         });
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const clearTranscript = useCallback(() => {
@@ -858,7 +910,7 @@ export function App() {
             onClick={() => (capturing ? void stopCapture() : void startCapture())}
             disabled={asr.phase !== 'ready'}
             title={
-              captureKindForPlatform(window.mc.platform) === 'loopback'
+              themSourceFor(window.mc.platform, settings?.audio.themDeviceId) !== 'input'
                 ? capturing
                   ? t.titlebar.stopTitle
                   : t.titlebar.startTitle
@@ -869,15 +921,18 @@ export function App() {
           >
             {capturing ? t.titlebar.stop : t.titlebar.start}
           </button>
-          {captureKindForPlatform(window.mc.platform) === 'input' && mics.length > 0 && (
+          {captureKindForPlatform(window.mc.platform) === 'input' && (mics.length > 0 || window.mc.platform === 'darwin') && (
             <InWindowSelect
               className="mic-select"
-              value={settings?.audio.themDeviceId ?? ''}
+              value={themSourceFor(window.mc.platform, settings?.audio.themDeviceId) === 'system' ? '' : settings?.audio.themDeviceId ?? ''}
               onChange={(value) => void selectThemInput(value)}
               ariaLabel={t.titlebar.themDeviceTitle}
               options={[
-                { value: '', label: t.titlebar.themDeviceDefault },
-                ...mics.map((m) => ({ value: m.deviceId, label: (m.label || t.titlebar.themDeviceDefault).slice(0, 14) })),
+                { value: '', label: window.mc.platform === 'darwin' ? t.titlebar.themSystemAudio : t.titlebar.themDeviceDefault },
+                // macOS: "default" is the built-in mic; '' already means system audio
+                ...mics
+                  .filter((m) => window.mc.platform !== 'darwin' || m.deviceId !== 'default')
+                  .map((m) => ({ value: m.deviceId, label: (m.label || t.titlebar.themDeviceDefault).slice(0, 14) })),
               ]}
             />
           )}
@@ -1047,6 +1102,9 @@ export function App() {
           onAsk={(text) => askLlm('segment', text)}
           onTranslate={translateSegment}
           onClear={clearTranscript}
+          onExport={() => void exportTranscriptNow()}
+          exportNotice={exportNotice}
+          onRevealExport={(path) => window.mc.revealExport(path)}
           oeai={oeai}
         />
         <AnswerSession

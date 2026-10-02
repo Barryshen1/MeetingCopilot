@@ -4,7 +4,7 @@
 
 macOS 版保留了完整链路——流式转录、提词式回答、简历/JD 贴合——但有两个平台差异：
 
-1. **没有系统回环采集。** Electron 的 `audio: 'loopback'` 仅支持 Windows，macOS 上「对方」通道改为从可选择的**音频输入设备**录制。要听到会议软件的声音，需要经 BlackHole 等虚拟设备路由系统音频（见下文）。
+1. **系统声音由内置小组件录制。** Electron 的 `audio: 'loopback'` 仅支持 Windows。在 macOS 14.2 及以上，「对方」通道使用随应用打包的 `mc-system-audio`：它通过 Core Audio 进程音频捕获录制 Mac 正在播放的声音，不会打开麦克风。也可以改选 BlackHole 等输入设备（见下文）。
 2. **隐身是尽力而为。** 新版 ScreenCaptureKit 客户端仍可能捕获窗口，macOS 上无法保证完全隐身。
 
 工程细节见 [移植 SDD](macos-port-sdd.md)。
@@ -32,7 +32,9 @@ npm start
 
 ## 音频：把会议声音接进 MeetingCopilot
 
-要采集会议软件（腾讯会议 / Zoom / …）而不是内置麦克风：
+**默认：系统声音。** 设置 → 音频设备 →「对方音频输入」选**系统声音**时，点 ▶ 开始会录制 Mac 正在播放的所有声音（会议软件、视频等），不会打开麦克风；你自己的声音只会通过单独的 **🎤** 通道进入转录。第一次开始时，macOS 会请你允许 MeetingCopilot 录制系统音频（系统设置 → 隐私与安全性 → 屏幕与系统音频录制）。需要 macOS 14.2+；`npm run build` 会用 `swiftc`（Apple Command Line Tools）编译这个小组件。
+
+**备选：BlackHole。** 如果想经虚拟设备采集会议软件：
 
 1. **安装 BlackHole**（2 声道版即可）：
    ```bash

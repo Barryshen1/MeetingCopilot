@@ -63,6 +63,17 @@ describe('SettingsStore', () => {
     expect(codexServiceTier(new SettingsStore(file, fakeCipher).getPublic().llm.codex)).toBe('priority');
   });
 
+  it('exports meeting records automatically by default and remembers the chosen folder', () => {
+    const store = new SettingsStore(file, fakeCipher, 'zh', '/Users/x/Documents/MeetingCopilot 会议记录');
+    expect(store.getPublic().export).toEqual({ autoExport: true, folder: '/Users/x/Documents/MeetingCopilot 会议记录' });
+    store.applyPatch({ export: { autoExport: false, folder: '/Volumes/Data/records' } });
+    const reloaded = new SettingsStore(file, fakeCipher, 'zh', '/Users/x/Documents/MeetingCopilot 会议记录');
+    expect(reloaded.getPublic().export).toEqual({ autoExport: false, folder: '/Volumes/Data/records' });
+    reloaded.applyPatch({ export: { folder: '' } });
+    expect(reloaded.exportFolder()).toBe('/Users/x/Documents/MeetingCopilot 会议记录');
+    expect(reloaded.getPublic().export.autoExport).toBe(false);
+  });
+
   it('invalidates Codex verification when the backend or model changes', () => {
     const store = new SettingsStore(file, fakeCipher);
     store.applyPatch({ llm: { backend: 'codex-cli', codex: { model: 'first' } } });
