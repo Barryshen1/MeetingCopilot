@@ -11,6 +11,7 @@ import {
   type SecretCipher,
 } from '../electron/settings';
 import type { SettingsFile } from '../shared/protocol';
+import { codexServiceTier } from '../shared/codex';
 
 const fakeCipher: SecretCipher = {
   available: () => true,
@@ -45,6 +46,21 @@ describe('SettingsStore', () => {
     loaded.applyPatch({ llm: { backend: 'openai-compatible' } });
     expect(loaded.data.llm.model).toBe('deepseek-chat');
     expect(loaded.getLlmApiKey()).toBe('test-api-key');
+  });
+
+  it('keeps Codex Fast mode on for saved profiles and persists an explicit opt-out without losing verification', () => {
+    // a profile saved before Fast mode existed carries no fastMode field
+    writeFileSync(file, JSON.stringify({ ...defaultSettings(), llm: { ...defaultSettings().llm, backend: 'codex-cli', codex: { model: 'gpt-6.1-sol' } } }));
+    const store = new SettingsStore(file, fakeCipher);
+    expect(codexServiceTier(store.getPublic().llm.codex)).toBe('priority');
+    store.recordVerification('llm', { lastTestOk: true });
+    store.applyPatch({ llm: { codex: { fastMode: false } } });
+    expect(store.getPublic().llm.verification?.lastTestOk).toBe(true);
+    const reloaded = new SettingsStore(file, fakeCipher);
+    expect(reloaded.getPublic().llm.codex).toEqual({ model: 'gpt-6.1-sol', fastMode: false });
+    expect(codexServiceTier(reloaded.getPublic().llm.codex)).toBe('default');
+    reloaded.applyPatch({ llm: { codex: { fastMode: true } } });
+    expect(codexServiceTier(new SettingsStore(file, fakeCipher).getPublic().llm.codex)).toBe('priority');
   });
 
   it('invalidates Codex verification when the backend or model changes', () => {

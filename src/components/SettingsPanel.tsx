@@ -286,6 +286,7 @@ export function SettingsPanel({
             binaryPath: codexConfig.binaryPath?.trim() ?? '',
             model: codexConfig.model?.trim() ?? '',
             reasoningEffort: codexConfig.reasoningEffort,
+            fastMode: codexConfig.fastMode !== false,
           },
           baseUrl: baseUrl.trim(),
           model: model.trim(),

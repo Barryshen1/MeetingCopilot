@@ -21,10 +21,15 @@ git clone https://github.com/Barryshen1/MeetingCopilot.git
 cd MeetingCopilot
 npm ci             # 自动应用必需的 patches/ 补丁
 npm run dist:mac:dir
-open release/mac-arm64/MeetingCopilot.app
+npm run install:mac   # 安装到 /Applications，并移除 release/ 里的构建副本
+open -a /Applications/MeetingCopilot.app
 ```
 
-应用生成在 `release/mac-arm64/MeetingCopilot.app`。如需固定安装位置，可先退出应用，再移到你常用的 Applications 文件夹。运行 `npm run dist:mac` 还会在 `release/` 生成 `MeetingCopilot-<version>-mac-arm64-adhoc.zip`。
+`npm run install:mac` 会先确认应用已退出，再把 `release/mac-arm64/MeetingCopilot.app` 复制到 `/Applications`（可用 `MC_INSTALL_DIR` 改为其他文件夹），校验签名、向系统登记这一份，然后删除 `release/` 中的 `.app` 构建副本。运行 `npm run dist:mac` 还会在 `release/` 生成 `MeetingCopilot-<version>-mac-arm64-adhoc.zip`，安装脚本不会删除 ZIP。
+
+**安装在内置磁盘上。** 这是约 650 MB 的 Electron 应用；放在 USB 机械移动硬盘上时，硬盘一忙，从点击到出现窗口实测要 40–75 秒，看起来像“打不开”；放在内置 SSD 上不到 1 秒。应用数据目录可以留在外置盘。
+
+**只保留一份 `.app`。** 每个 `MeetingCopilot.app`（包括备份、解压出的副本和 `release/` 构建）都以同一个应用标识登记，会在 Spotlight / 启动台里重复出现，系统“打开 MeetingCopilot”时也可能启动旧副本。需要回滚备份时，打包成 ZIP：`ditto -c -k --keepParent /Applications/MeetingCopilot.app ~/MeetingCopilot-backup.zip`。
 
 构建保留 hardened runtime，并对应用及辅助程序进行临时签名。授权文件允许 Electron 的 JIT、加载自带库和音频输入，但不会代替用户授予麦克风或屏幕录制权限；macOS 仍会请求授权。
 

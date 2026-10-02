@@ -14,8 +14,8 @@
 
 1. 运行 `uname -m` 和 `sw_vers -productVersion`。本包只面向 `arm64`、macOS 14+。若条件不符，停止安装并说明原因。
 2. 找到发送人交付的**外层 ZIP** 和单独提供的 SHA-256 校验值。对 ZIP 的实际路径运行 `shasum -a 256`，与发送人的值逐字比对，**通过后再安装 `.app`**。不要把 ZIP 名称中的版本号当作校验值。
-3. 检查本机是否已有 MeetingCopilot，以及 `~/Library/Application Support/MeetingCopilot/` 是否已有设置或会话。若已有应用，先退出并备份原 `.app`；保留应用数据目录，不覆盖其中的 `settings.json`、`sessions.json`、导入资料、模型或钥匙串凭据。本分支与同名应用可能共用该数据目录。
-4. 解压后把 `MeetingCopilot.app` 放到固定的“应用程序”位置，再从该位置启动；不要每次从临时解压文件夹运行。不要修改或重新签名 `.app`。
+3. 检查本机是否已有 MeetingCopilot，以及 `~/Library/Application Support/MeetingCopilot/` 是否已有设置或会话。若已有应用，先退出，把原 `.app` 备份成 ZIP（`ditto -c -k --keepParent <原.app> <备份.zip>`），**不要另存第二个 `.app`**——每一份 `.app` 都会出现在 Spotlight / 启动台里，系统还可能启动旧副本；保留应用数据目录，不覆盖其中的 `settings.json`、`sessions.json`、导入资料、模型或钥匙串凭据。本分支与同名应用可能共用该数据目录。
+4. 解压后把 `MeetingCopilot.app` 放到**内置磁盘**上固定的“应用程序”位置（如 `/Applications`），再从该位置启动；不要每次从临时解压文件夹运行，也不要装在 USB 机械硬盘上（启动可能要一分钟以上）。安装完成后删除解压出的那份 `.app`，只留一份。不要修改或重新签名 `.app`。
 
 这份个人构建使用临时签名，未经 Apple 公证。首次打开若出现“无法验证开发者”一类提示，在**确认来源和哈希正确之后**，由本人按 [Apple 的“仍要打开”步骤](https://support.apple.com/102445) 在“系统设置 → 隐私与安全性”操作。若系统提示应用**已损坏或包含恶意软件**，不要绕过提示；重新核对交付文件。不要关闭整个 Mac 的安全检查，也不要用 `xattr`、`spctl` 或 `tccutil` 批量绕过保护。
 

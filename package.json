@@ -24,6 +24,7 @@
     "dist:dir": "npm run build && npm run verify:patched && electron-builder --dir",
     "dist:mac:dir": "npm run build && npm run verify:patched && electron-builder --mac dir --arm64 --publish never",
     "dist:mac": "npm run build && npm run verify:patched && electron-builder --mac zip --arm64 --publish never",
+    "install:mac": "node tools/install-mac.mjs",
     "dist:win": "npm run build && npm run verify:patched && electron-builder --win nsis portable --publish never",
     "harness": "node tools/asr-harness.mjs",
     "smoke:llm": "vite-node tools/llm-smoke.ts",

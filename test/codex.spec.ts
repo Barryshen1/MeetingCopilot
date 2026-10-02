@@ -162,6 +162,30 @@ describe('Codex CLI integration', () => {
     expect((await client.check(config)).models.map(model => model.id)).toEqual(['first', 'second']);
   });
 
+  it('reports each model\'s Fast (priority) service tier from the live catalog', async () => {
+    await client.check(config);
+    peers[0].handler = req => {
+      if (req.method !== 'model/list') return;
+      peers[0].response(req, { data: [
+        { model: 'fast-model', displayName: 'Fast Model', isDefault: true, supportedReasoningEfforts: [],
+          serviceTiers: [{ id: 'priority', name: 'Fast', description: '2x speed, increased usage' }, { bogus: true }] },
+        { model: 'plain-model', displayName: 'Plain Model', isDefault: false, supportedReasoningEfforts: [] },
+      ], nextCursor: null });
+      return true;
+    };
+    const models = (await client.check(config)).models;
+    expect(models.find(m => m.id === 'fast-model')?.serviceTiers).toEqual([{ id: 'priority', name: 'Fast', description: '2x speed, increased usage' }]);
+    expect(models.find(m => m.id === 'plain-model')?.serviceTiers).toEqual([]);
+  });
+
+  it('requests Codex Fast mode by default and standard speed only when explicitly turned off', async () => {
+    await client.chat(config, question, { onDelta: () => {} });
+    await client.chat({ ...config, fastMode: true }, question, { onDelta: () => {} });
+    await client.chat({ ...config, fastMode: false }, question, { onDelta: () => {} });
+    const tiers = peers[0].requests.filter(r => r.method === 'thread/start').map(r => r.params.serviceTier);
+    expect(tiers).toEqual(['priority', 'priority', 'default']);
+  });
+
   it('preserves roles and images, isolates threads, and streams without duplicating the completed item', async () => {
     const image = 'data:image/png;base64,AAAA';
     const messages: ChatMessage[] = [
@@ -175,7 +199,7 @@ describe('Codex CLI integration', () => {
     expect(deltas).toEqual(['你好', ' there']);
     const requests = peers[0].requests;
     const start = requests.find(r => r.method === 'thread/start')!.params;
-    expect(start).toMatchObject({ ephemeral: true, environments: [], sandbox: 'read-only', approvalPolicy: 'never', model: 'available-model' });
+    expect(start).toMatchObject({ ephemeral: true, environments: [], sandbox: 'read-only', approvalPolicy: 'never', model: 'available-model', serviceTier: 'priority' });
     expect(start.baseInstructions).toContain('Reply briefly in English.');
     expect(start.config['features.plugins']).toBe(false);
     expect(start.config.mcp_servers).toEqual({ inherited_server: { enabled: false } });

@@ -5,7 +5,7 @@ import { constants } from 'node:fs';
 import { access, mkdir, readdir, realpath, stat } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import type { CodexModel, CodexSettings, CodexStatus } from '../../shared/codex';
+import { codexServiceTier, type CodexModel, type CodexServiceTier, type CodexSettings, type CodexStatus } from '../../shared/codex';
 import type { ChatContentPart, ChatMessage, ChatResult, ChatStreamCallbacks } from './adapter';
 
 const RPC_TIMEOUT_MS = 20_000;
@@ -353,7 +353,11 @@ export class CodexClient {
           seen.add(model.model);
           models.push({ id: model.model, displayName: model.displayName || model.model, isDefault: !!model.isDefault,
             defaultReasoningEffort: model.defaultReasoningEffort,
-            supportedReasoningEfforts: Array.isArray(model.supportedReasoningEfforts) ? model.supportedReasoningEfforts : [] });
+            supportedReasoningEfforts: Array.isArray(model.supportedReasoningEfforts) ? model.supportedReasoningEfforts : [],
+            serviceTiers: Array.isArray(model.serviceTiers)
+              ? model.serviceTiers.filter((tier: any): tier is CodexServiceTier => typeof tier?.id === 'string')
+                .map((tier: CodexServiceTier) => ({ id: tier.id, name: String(tier.name ?? tier.id), description: String(tier.description ?? '') }))
+              : [] });
         }
         const next = result?.nextCursor;
         if (next && next === cursor) throw new Error('Codex returned a repeated model-list cursor.');
@@ -442,6 +446,11 @@ export class CodexClient {
             cwd: this.options.cwd,
             ...(config.model?.trim() ? { model: config.model.trim() } : {}),
             approvalPolicy: 'never', sandbox: 'read-only', ephemeral: true,
+            // Explicit on every thread, so the user's global Codex /fast
+            // setting never decides MeetingCopilot's answer speed. codex-cli
+            // 0.159 starts the thread with tier null for an id it does not
+            // know, instead of failing the request.
+            serviceTier: codexServiceTier(config),
             environments: [], dynamicTools: [],
             baseInstructions: prepared.instructions, developerInstructions: TEXT_INSTRUCTIONS,
             config: threadConfig,

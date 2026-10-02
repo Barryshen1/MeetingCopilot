@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { codexConfigKey, type CodexReasoningEffort, type CodexSettings, type CodexStatus, type CodexTestResult } from '../../shared/codex';
+import { CODEX_FAST_SERVICE_TIER, codexConfigKey, codexServiceTier, type CodexReasoningEffort, type CodexSettings, type CodexStatus, type CodexTestResult } from '../../shared/codex';
 import type { PublicSettings } from '../../shared/protocol';
 import { useT } from '../i18n';
 import { InWindowSelect } from './InWindowSelect';
@@ -32,6 +32,8 @@ export function CodexProviderSettings({ config, saved, onChange, onSettingsRefre
   const selectedModel = status?.models.find((m) => m.id === config.model?.trim());
   const effortModel = selectedModel ?? (!config.model?.trim() ? status?.models.find((m) => m.isDefault) : undefined);
   const efforts = effortModel ? effortModel.supportedReasoningEfforts.map((e) => e.reasoningEffort) : EFFORTS;
+  const fastOn = codexServiceTier(config) === CODEX_FAST_SERVICE_TIER;
+  const fastTier = effortModel?.serviceTiers?.find((tier) => tier.id === CODEX_FAST_SERVICE_TIER);
 
   const refresh = async () => {
     const id = ++requestId.current;
@@ -149,6 +151,23 @@ export function CodexProviderSettings({ config, saved, onChange, onSettingsRefre
           ...efforts.map((effort) => ({ value: effort, label: effort })),
         ]}
       />
+    </div>
+    <div className="settings-row">
+      <label htmlFor="codex-fast">{t.settings.codexFast}</label>
+      <InWindowSelect
+        id="codex-fast"
+        value={fastOn ? 'on' : 'off'}
+        disabled={testing}
+        onChange={(value) => onChange({ ...config, fastMode: value === 'on' })}
+        options={[
+          { value: 'on', label: t.settings.codexFastOn },
+          { value: 'off', label: t.settings.codexFastOff },
+        ]}
+      />
+      {fastOn && effortModel && <span className="settings-inline-hint">{fastTier
+        ? t.settings.codexFastTier(fastTier.name, fastTier.description)
+        : t.settings.codexFastUnlisted}</span>}
+      <span className="settings-inline-hint">{t.settings.codexFastHint}</span>
     </div>
     <div className="settings-row">
       <div className="key-status">
