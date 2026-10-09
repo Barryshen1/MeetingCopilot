@@ -124,6 +124,10 @@ func run() async -> Never {
   // Without permission ScreenCaptureKit returns nothing useful (and older APIs
   // silently return only the wallpaper): report it so the app can say so.
   if !CGPreflightScreenCaptureAccess() {
+    // registers MeetingCopilot in System Settings' Screen Recording list and,
+    // when macOS still allows it, shows the system prompt (attributed to the
+    // app that spawned this helper)
+    _ = CGRequestScreenCaptureAccess()
     fail("permission", "Screen Recording permission is not granted to MeetingCopilot")
   }
   guard let target = pickTarget() else { fail("no-window", "no app window is open on screen") }
