@@ -20,6 +20,8 @@ export interface AsrHostOptions {
   ep: ('dml' | 'cpu')[];
   language: 'auto' | string;
   cloud?: { baseUrl: string; model: string; apiKey: string };
+  /** 对方 live translation (Model Studio LiveTranslate), when configured */
+  liveTranslate?: { url: string; apiKey: string; target: string; enabled: boolean };
 }
 
 export class AsrHost {
@@ -65,6 +67,7 @@ export class AsrHost {
             text: msg.text,
             lang: msg.lang,
             speaker: msg.speaker,
+            ...(msg.translation ? { translation: msg.translation } : {}),
             audioMs: msg.audioMs,
             timings: {
               speechStartTs: msg.speechStartTs,
@@ -76,7 +79,12 @@ export class AsrHost {
           });
           break;
         case 'partial':
-          this.emit({ kind: 'partial', speaker: msg.speaker, text: msg.text });
+          this.emit({
+            kind: 'partial',
+            speaker: msg.speaker,
+            text: msg.text,
+            ...(msg.translation ? { translation: msg.translation } : {}),
+          });
           break;
         case 'status':
           this.emit({ kind: 'status', state: msg.state, queuedSegments: msg.queuedSegments });
@@ -101,6 +109,7 @@ export class AsrHost {
       ep: opts.ep,
       language: opts.language,
       cloud: opts.cloud,
+      liveTranslate: opts.liveTranslate,
     });
   }
 
@@ -116,6 +125,11 @@ export class AsrHost {
 
   setLanguage(language: 'auto' | string): void {
     this.send({ type: 'config', language });
+  }
+
+  /** 实时翻译 on/off for 对方, applied by the running worker (no rebuild) */
+  setLiveTranslate(enabled: boolean): void {
+    this.send({ type: 'config', liveTranslate: enabled });
   }
 
   flush(): void {

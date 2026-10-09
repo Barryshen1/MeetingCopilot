@@ -44,6 +44,7 @@ function settings(over: Partial<PublicSettings> = {}): PublicSettings {
         apiKeySet: true,
       },
       localRealtime: { model: 'fun-asr-nano' },
+      liveTranslate: { enabled: false, model: 'qwen3.8-livetranslate-flash-realtime', target: 'zh', available: true },
     },
     ui: {
       stealth: true,

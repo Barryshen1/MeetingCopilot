@@ -10,6 +10,8 @@ import type { ProviderCapability, ProviderId } from './providerCatalog';
 export type { ProviderCapability, ProviderId } from './providerCatalog';
 import type { TrayRendererCommand } from './trayMenu';
 export type { TrayCommand, TrayRendererCommand } from './trayMenu';
+import type { LiveTranslateSettings } from './liveTranslate';
+export type { LiveTranslateSettings, LiveTranslateTarget } from './liveTranslate';
 
 // ---------- Settings ----------
 
@@ -235,6 +237,9 @@ export interface SettingsFile {
       /** Absolute Python interpreter path for FunASR; MOSS has its own environment. */
       pythonPath?: string;
     };
+    /** 实时翻译: 对方 through Model Studio LiveTranslate (uses the `realtime`
+     * slot's workspace URL and key); see shared/liveTranslate.ts */
+    liveTranslate?: Partial<LiveTranslateSettings>;
   };
   ui: {
     stealth: boolean;
@@ -326,6 +331,8 @@ export interface PublicSettings {
       verification?: ProviderVerification;
     };
     localRealtime: { model?: string; pythonPath?: string };
+    /** `available` = the realtime slot is a Model Studio endpoint with a key */
+    liveTranslate: LiveTranslateSettings & { available: boolean };
   };
   ui: {
     stealth: boolean;
@@ -386,6 +393,7 @@ export interface SettingsPatch {
       verification?: ProviderVerification;
     };
     localRealtime?: { model?: string; pythonPath?: string };
+    liveTranslate?: Partial<LiveTranslateSettings>;
   };
   ui?: {
     stealth?: boolean;
@@ -402,6 +410,14 @@ export interface SettingsPatch {
   audio?: { themDeviceId?: string; micEnabled?: boolean; micDeviceId?: string };
   /** folder: '' resets to the default folder */
   export?: { autoExport?: boolean; folder?: string };
+}
+
+/** 实时翻译 connection check (no audio is sent). */
+export interface LiveTranslateTestResult {
+  ok: boolean;
+  latencyMs?: number;
+  /** 'UNAVAILABLE' = no Model Studio realtime URL + key saved; otherwise the service's reason */
+  error?: string;
 }
 
 /** Result of writing a meeting record (main -> renderer). */
@@ -434,6 +450,8 @@ export interface AsrSegmentEvent {
   text: string;
   lang?: string;
   speaker: Speaker;
+  /** live translation of `text` (实时翻译 on, 对方 only) */
+  translation?: string;
   audioMs: number;
   timings: SegmentTimings;
 }
@@ -463,6 +481,8 @@ export interface AsrPartialEvent {
   kind: 'partial';
   speaker: Speaker;
   text: string;
+  /** translation so far (实时翻译 on) */
+  translation?: string;
 }
 
 export type AsrEvent =
@@ -564,6 +584,8 @@ export const IPC = {
   capturePcm: 'capture:pcm',
   /** invoke: (text) => string — cheap one-shot translation to Chinese (inline, off-session) */
   translateText: 'llm:translate',
+  /** invoke: () => LiveTranslateTestResult — open + finish one 实时翻译 session with the saved settings */
+  liveTranslateTest: 'live-translate:test',
   /** renderer -> main: capture lifecycle */
   captureStarted: 'capture:started',
   captureStopped: 'capture:stopped',

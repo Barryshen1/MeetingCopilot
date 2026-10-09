@@ -32,6 +32,47 @@ afterEach(() => {
   rmSync(dir, { recursive: true, force: true });
 });
 
+describe('SettingsStore 实时翻译', () => {
+  it('defaults to off and becomes available with a Model Studio realtime endpoint + key', () => {
+    const store = new SettingsStore(file, fakeCipher);
+    expect(store.getPublic().asr.liveTranslate).toEqual({
+      enabled: false,
+      model: 'qwen3.8-livetranslate-flash-realtime',
+      target: 'zh',
+      available: false,
+    });
+    store.applyPatch({
+      asr: {
+        realtime: {
+          baseUrl: 'wss://ws-1.ap-southeast-1.maas.aliyuncs.com/api-ws/v1/inference',
+          model: 'qwen-audio-3.1-asr-flash-streaming',
+          apiKey: 'sk-test',
+        },
+      },
+    });
+    expect(store.getPublic().asr.liveTranslate.available).toBe(true);
+    // the local sidecar URL cannot serve it
+    store.applyPatch({ asr: { realtime: { baseUrl: 'ws://127.0.0.1:10097' } } });
+    expect(store.getPublic().asr.liveTranslate.available).toBe(false);
+  });
+
+  it('persists the switch and target, repairing bad values', () => {
+    writeFileSync(file, JSON.stringify(defaultSettings())); // a profile saved before the feature
+    const store = new SettingsStore(file, fakeCipher);
+    expect(store.data.asr.liveTranslate?.enabled).toBe(false);
+    store.applyPatch({ asr: { liveTranslate: { enabled: true } } });
+    store.applyPatch({ asr: { liveTranslate: { target: 'en' } } });
+    const reloaded = new SettingsStore(file, fakeCipher);
+    expect(reloaded.getPublic().asr.liveTranslate).toMatchObject({ enabled: true, target: 'en' });
+    reloaded.applyPatch({ asr: { liveTranslate: { target: 'xx' as 'zh', model: '' } } });
+    expect(reloaded.getPublic().asr.liveTranslate).toMatchObject({
+      enabled: true,
+      target: 'zh',
+      model: 'qwen3.8-livetranslate-flash-realtime',
+    });
+  });
+});
+
 describe('SettingsStore', () => {
   it('stores Codex preferences separately and preserves API credentials when switching', () => {
     const store = new SettingsStore(file, fakeCipher);

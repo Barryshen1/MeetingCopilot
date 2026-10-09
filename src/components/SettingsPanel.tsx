@@ -28,6 +28,7 @@ import {
 } from '../../shared/providerTestRequests';
 import { sanitizeApiKeyInput } from '../../shared/keyInput';
 import type { CodexSettings } from '../../shared/codex';
+import { liveTranslateUrl, type LiveTranslateTarget } from '../../shared/liveTranslate';
 import { listMics } from '../audio/micCapture';
 import { useT } from '../i18n';
 import { ConnectionResult } from './providers/ConnectionResult';
@@ -174,6 +175,12 @@ export function SettingsPanel({
   const [devices, setDevices] = useState<{ deviceId: string; label: string }[]>([]);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState('');
+  // 实时翻译 (对方 → LiveTranslate); the transcript pane's switch may flip
+  // `enabled` while this draft is open, so save sends it only when changed here
+  const initialLt = settings.asr.liveTranslate;
+  const [ltEnabled, setLtEnabled] = useState(initialLt?.enabled ?? false);
+  const [ltTarget, setLtTarget] = useState<LiveTranslateTarget>(initialLt?.target ?? 'zh');
+  const [ltTest, setLtTest] = useState<{ testing: boolean; text?: string; ok?: boolean }>({ testing: false });
   /** weak-crypto confirmation is pending; nothing has been sent to main yet */
   const [confirmWeak, setConfirmWeak] = useState(false);
 
@@ -335,6 +342,10 @@ export function SettingsPanel({
             ...(rtApiKey !== undefined ? { apiKey: rtApiKey } : {}),
           },
           localRealtime: { model: rtLocalModel, pythonPath: localPythonPath.trim() },
+          liveTranslate: {
+            target: ltTarget,
+            ...(ltEnabled !== (initialLt?.enabled ?? false) ? { enabled: ltEnabled } : {}),
+          },
         },
         ui: {
           hotkeyToggle: hotkey.trim(),
@@ -543,6 +554,81 @@ export function SettingsPanel({
     return p ? presetName(p) : `${model || '—'}`;
   };
 
+  /** draft availability: a Model Studio realtime URL plus a saved or newly typed key */
+  const ltModel = live.asr.liveTranslate?.model ?? 'qwen3.8-livetranslate-flash-realtime';
+  const ltAvailable =
+    !!liveTranslateUrl(rtBaseUrl.trim(), ltModel) && (live.asr.realtime.apiKeySet || !!rtKey.patchValue());
+
+  const runLiveTranslateTest = async () => {
+    setLtTest({ testing: true });
+    try {
+      const r = await window.mc.liveTranslateTest();
+      setLtTest({
+        testing: false,
+        ok: r.ok,
+        text: r.ok
+          ? t.settings.liveTranslateTestOk(r.latencyMs ?? 0)
+          : r.error === 'UNAVAILABLE'
+            ? t.settings.liveTranslateTestUnavailable
+            : t.settings.liveTranslateTestFail(r.error ?? ''),
+      });
+    } catch (e) {
+      setLtTest({ testing: false, ok: false, text: t.settings.liveTranslateTestFail((e as Error).message) });
+    }
+  };
+
+  const liveTranslateRows = () => (
+    <>
+      <div className="settings-row">
+        <label>{t.settings.liveTranslateLabel}</label>
+        <InWindowSelect
+          value={ltEnabled && ltAvailable ? 'on' : 'off'}
+          ariaLabel={t.settings.liveTranslateLabel}
+          disabled={!ltAvailable}
+          onChange={(value) => setLtEnabled(value === 'on')}
+          options={[
+            { value: 'off', label: t.settings.liveTranslateOff },
+            { value: 'on', label: t.settings.liveTranslateOn },
+          ]}
+        />
+        {ltAvailable && (
+          <div className="key-status">
+            <span className="settings-inline-hint">{t.settings.liveTranslateTarget}</span>
+            <InWindowSelect
+              value={ltTarget}
+              ariaLabel={t.settings.liveTranslateTarget}
+              onChange={(value) => setLtTarget(value as LiveTranslateTarget)}
+              options={[
+                { value: 'zh', label: t.transcript.liveTranslateTargets.zh },
+                { value: 'en', label: t.transcript.liveTranslateTargets.en },
+              ]}
+            />
+            <button
+              className="btn btn-sm"
+              disabled={ltTest.testing || !live.asr.liveTranslate?.available}
+              title={t.settings.liveTranslateTestTitle}
+              onClick={() => void runLiveTranslateTest()}
+            >
+              {ltTest.testing ? t.settings.liveTranslateTesting : t.settings.liveTranslateTest}
+            </button>
+            {ltTest.text && (
+              <span
+                className={ltTest.ok ? 'tag tag-ok' : 'tag tag-err'}
+                title={ltTest.text}
+                style={{ maxWidth: 280, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+              >
+                {ltTest.text}
+              </span>
+            )}
+          </div>
+        )}
+        <span className="settings-inline-hint">
+          {ltAvailable ? t.settings.liveTranslateHint : t.settings.liveTranslateUnavailable}
+        </span>
+      </div>
+    </>
+  );
+
   const deviceOptions = [
     { value: '', label: t.settings.deviceDefault },
     ...devices.map((d) => ({ value: d.deviceId, label: d.label || d.deviceId })),
@@ -674,6 +760,8 @@ export function SettingsPanel({
           ]}
         />
       </div>
+
+      {liveTranslateRows()}
 
       <div className="settings-row">
         <label>{t.settings.llmBackend}</label>

@@ -1,7 +1,14 @@
 import { useEffect, useRef, useState } from 'react';
 import type { TranscriptSegment } from '../../shared/transcript';
+import type { PublicSettings } from '../../shared/protocol';
 import { useT } from '../i18n';
 import { nextStick } from '../../shared/stickToBottom';
+
+/** the sentence being spoken right now (and, with 实时翻译, its translation so far) */
+export interface LivePartial {
+  text: string;
+  translation?: string;
+}
 
 interface SelPopup {
   text: string;
@@ -15,7 +22,9 @@ interface SelPopup {
  * may span several bubbles, so besides per-bubble ⚡答, the user can drag-SELECT
  * exact text across bubbles → a popup answers precisely that selection.
  * Translation is INLINE (原文/译文 对照) and off-session, so it never pollutes
- * the answer context / wastes tokens.
+ * the answer context / wastes tokens. With 实时翻译 on, 对方 sentences arrive
+ * already translated (Model Studio LiveTranslate) and the live bubble shows
+ * the translation as it streams.
  */
 export function TranscriptPanel({
   segments,
@@ -28,10 +37,12 @@ export function TranscriptPanel({
   onExport,
   exportNotice,
   onRevealExport,
+  liveTranslate,
+  onToggleLiveTranslate,
   oeai = false,
 }: {
   segments: TranscriptSegment[];
-  partials?: { them?: string; me?: string };
+  partials?: { them?: LivePartial; me?: LivePartial };
   /** false = no LLM configured; transcription keeps working, ⚡答 does not */
   answersReady: boolean;
   answersHint: string;
@@ -43,6 +54,9 @@ export function TranscriptPanel({
   /** result line after a manual or automatic export */
   exportNotice?: { text: string; path?: string; error?: boolean } | null;
   onRevealExport?: (path: string) => void;
+  /** 实时翻译 state; the switch only shows when a Model Studio workspace + key are saved */
+  liveTranslate?: PublicSettings['asr']['liveTranslate'];
+  onToggleLiveTranslate?: () => void;
   /** OEAI oral-interview answer mode changes the hint, not answer controls. */
   oeai?: boolean;
 }) {
@@ -59,7 +73,14 @@ export function TranscriptPanel({
       el.scrollTop = el.scrollHeight;
       lastTop.current = el.scrollTop;
     }
-  }, [segments, partials?.them, partials?.me, stick]);
+  }, [
+    segments,
+    partials?.them?.text,
+    partials?.them?.translation,
+    partials?.me?.text,
+    partials?.me?.translation,
+    stick,
+  ]);
 
   const onScroll = () => {
     const el = boxRef.current;
@@ -94,6 +115,18 @@ export function TranscriptPanel({
       <header className="pane-head">
         <span className="pane-title">{t.transcript.title}</span>
         <span className="pane-hint">{oeai ? t.transcript.oeaiHint : t.transcript.hint}</span>
+        {liveTranslate?.available && onToggleLiveTranslate && (
+          <button
+            className={liveTranslate.enabled ? 'btn btn-sm btn-on' : 'btn btn-sm'}
+            onClick={onToggleLiveTranslate}
+            aria-pressed={liveTranslate.enabled}
+            title={(liveTranslate.enabled ? t.transcript.liveTranslateOnTitle : t.transcript.liveTranslateOffTitle)(
+              t.transcript.liveTranslateTargets[liveTranslate.target] ?? liveTranslate.target,
+            )}
+          >
+            {t.transcript.liveTranslate}
+          </button>
+        )}
         {onExport && (
           <button className="btn btn-sm" onClick={onExport} title={t.transcript.exportTitle}>
             {t.transcript.export}
@@ -171,16 +204,18 @@ export function TranscriptPanel({
             );
           })
         )}
-        {partials?.them && (
+        {partials?.them?.text && (
           <div className="bubble bubble-them bubble-live">
             <div className="bubble-role">{`${t.transcript.them} · ${t.transcript.live}`}</div>
-            <div className="bubble-text">{partials.them}</div>
+            <div className="bubble-text">{partials.them.text}</div>
+            {partials.them.translation && <div className="bubble-trans">{partials.them.translation}</div>}
           </div>
         )}
-        {partials?.me && (
+        {partials?.me?.text && (
           <div className="bubble bubble-me bubble-live">
             <div className="bubble-role">{`${t.transcript.me} · ${t.transcript.live}`}</div>
-            <div className="bubble-text">{partials.me}</div>
+            <div className="bubble-text">{partials.me.text}</div>
+            {partials.me.translation && <div className="bubble-trans">{partials.me.translation}</div>}
           </div>
         )}
         {!stick && (
