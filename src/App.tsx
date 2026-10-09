@@ -290,6 +290,23 @@ export function App() {
     [appendTurn, currentMaterial, maybeTitle],
   );
 
+  /** 框选 could not capture (e.g. no Screen Recording permission): say why in the answer pane */
+  const showShotError = useCallback(
+    (message: string) => {
+      const sid = currentIdRef.current;
+      if (!sid) return;
+      appendTurn(sid, {
+        id: uid('shot'),
+        kind: 'vision',
+        label: tRef.current.app.readShot,
+        text: '',
+        status: 'error',
+        error: message,
+      });
+    },
+    [appendTurn],
+  );
+
   // ---- boot: load settings + sessions ----
   useEffect(() => {
     void window.mc.getSettings().then((s) => {
@@ -381,6 +398,7 @@ export function App() {
             if (t.id !== ev.requestId) return t;
             if (ev.kind === 'delta') return { ...t, text: t.text + ev.text };
             if (ev.kind === 'done') return { ...t, text: ev.text || t.text, status: 'done' };
+            if (ev.kind === 'label') return { ...t, label: ev.text };
             return { ...t, status: 'error', error: ev.message };
           }),
         })),
@@ -1158,6 +1176,7 @@ export function App() {
           onClear={() => patchSession(currentIdRef.current, (s) => ({ ...s, turns: [] }))}
           onFreeAsk={(q) => askLlm('free', q)}
           onShotAsk={askShot}
+          onShotError={showShotError}
           screenshotMode={settings?.ui.screenshotMode ?? 'general'}
           onScreenshotModeChange={(mode) => void updateScreenshotMode(mode)}
           codexModel={settings?.llm.backend === 'codex-cli' ? settings.llm.codex?.model : undefined}

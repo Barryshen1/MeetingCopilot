@@ -82,9 +82,10 @@ dialogs, and region-selection overlay may still appear in a live full-display
 share.
 
 During sharing, use an English input source and **Command+Shift+S** to capture
-the display under the pointer and ask. **Command+B** hides or shows the main
-window. The app briefly hides its own window before capturing, but cannot
-control another app's live share. Check the result in your meeting app's
+the window you are working in and ask. **Command+B** hides or shows the main
+window. 📷 captures only that window, so MeetingCopilot never appears in it and
+is not hidden or flashed for it; Region briefly hides the main window. The app
+cannot control another app's live share. Check the result in your meeting app's
 preview before sharing.
 
 ## Data locations
