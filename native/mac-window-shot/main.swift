@@ -65,13 +65,34 @@ let systemOwners: Set<String> = [
 
 struct Target {
   let id: CGWindowID
+  let pid: pid_t
   let app: String
   let title: String
+  let bounds: CGRect
 }
 
+func isRealSize(_ t: Target) -> Bool { t.bounds.width >= 300 && t.bounds.height >= 200 }
+
+func displayOf(_ rect: CGRect) -> CGDirectDisplayID? {
+  var id = CGDirectDisplayID(0)
+  var count: UInt32 = 0
+  let center = CGPoint(x: rect.midX, y: rect.midY)
+  return CGGetDisplaysWithPoint(center, 1, &id, &count) == .success && count > 0 ? id : nil
+}
+
+/**
+ * The frontmost app's main window. Apps float bubbles, popovers, find bars
+ * and toolbars as separate windows over their main one (a full-screen
+ * Chrome's tab strip and toolbar are ~40–160 pt tall strips), so: the app is
+ * chosen by its frontmost window; if that window is itself of a real size it
+ * wins, otherwise the app's frontmost real-size window on the SAME display as
+ * those strips (the window they belong to), then any real-size window, then —
+ * for apps that are all small (Calculator) — its largest window.
+ */
 func pickTarget() -> Target? {
   let options: CGWindowListOption = [.optionOnScreenOnly, .excludeDesktopElements]
   guard let list = CGWindowListCopyWindowInfo(options, kCGNullWindowID) as? [[String: Any]] else { return nil }
+  var eligible: [Target] = []
   for w in list {  // front to back
     guard (w[kCGWindowLayer as String] as? Int) == 0,
           let pid = w[kCGWindowOwnerPID as String] as? pid_t,
@@ -86,10 +107,16 @@ func pickTarget() -> Target? {
     let owner = w[kCGWindowOwnerName as String] as? String ?? ""
     if systemOwners.contains(owner) { continue }
     if (w[kCGWindowAlpha as String] as? Double ?? 1) < 0.05 { continue }
-    if bounds.width < 120 || bounds.height < 80 { continue }  // tooltips, popovers, palettes
-    return Target(id: number, app: owner, title: w[kCGWindowName as String] as? String ?? "")
+    if bounds.width < 40 || bounds.height < 40 { continue }  // tooltips, cursors, specks
+    eligible.append(Target(id: number, pid: pid, app: owner, title: w[kCGWindowName as String] as? String ?? "", bounds: bounds))
   }
-  return nil
+  guard let front = eligible.first else { return nil }
+  if isRealSize(front) { return front }
+  let sameApp = eligible.filter { $0.pid == front.pid }
+  let frontDisplay = displayOf(front.bounds)
+  if let main = sameApp.first(where: { isRealSize($0) && displayOf($0.bounds) == frontDisplay }) { return main }
+  if let main = sameApp.first(where: isRealSize) { return main }
+  return sameApp.max(by: { $0.bounds.width * $0.bounds.height < $1.bounds.width * $1.bounds.height })
 }
 
 @available(macOS 14.0, *)
