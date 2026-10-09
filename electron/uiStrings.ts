@@ -11,6 +11,10 @@ const zh = {
   screenshotBusy: '正在截取屏幕，请稍后重试。',
   screenshotDialogOpen: '文件选择窗口仍打开。请先关闭它，再截取屏幕。',
   screenshotUnavailable: '无法截取鼠标所在的屏幕，请检查屏幕连接和系统录屏权限后重试。',
+  screenPermissionNeeded:
+    'MeetingCopilot 还没有「屏幕录制」权限，所以截不到画面。已为你打开「系统设置 → 隐私与安全性 → 屏幕与系统录音」：把 MeetingCopilot 的开关打开（如果已经是打开的，先选中它点「−」删除，再点「+」重新添加 /Applications/MeetingCopilot.app），然后退出并重新打开 MeetingCopilot。',
+  shotWindowLabel: (windowName: string, question: string) =>
+    question ? `截图（${windowName}）：${question}` : `截图（${windowName}）`,
   kbImportTitle: '导入个人知识库（.md / .txt）',
   exportFolderTitle: '选择会议记录保存位置',
   docFilter: '文档',
@@ -57,6 +61,10 @@ const en: MainDict = {
   screenshotBusy: 'A screen capture is in progress. Please try again shortly.',
   screenshotDialogOpen: 'Close the file picker before taking a screenshot.',
   screenshotUnavailable: 'Could not capture the display under the pointer. Check the display connection and screen recording permission, then retry.',
+  screenPermissionNeeded:
+    'MeetingCopilot does not have Screen Recording permission, so nothing could be captured. System Settings → Privacy & Security → Screen & System Audio Recording is now open: switch MeetingCopilot on (if it is already on, select it, remove it with “−” and add /Applications/MeetingCopilot.app again with “+”), then quit and reopen MeetingCopilot.',
+  shotWindowLabel: (windowName: string, question: string) =>
+    question ? `Screenshot (${windowName}): ${question}` : `Screenshot (${windowName})`,
   kbImportTitle: 'Import personal knowledge base (.md / .txt)',
   exportFolderTitle: 'Choose where meeting records are saved',
   docFilter: 'Documents',

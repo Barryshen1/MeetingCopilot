@@ -14,6 +14,7 @@ import {
   screen,
   session,
   shell,
+  systemPreferences,
 } from 'electron';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs';
 import { release } from 'os';
@@ -40,13 +41,14 @@ import { revealAppWindow } from './windowReveal';
 import { applyWindowZoom } from './windowZoom';
 import { writeMeetingRecord } from './meetingRecords';
 import { MacSystemAudio, systemAudioHelperPath } from './macSystemAudio';
+import { WindowShotError, captureWorkingWindow, windowLabel, windowShotHelperPath } from './macWindowShot';
 import { LiveTranslateEngine } from './asr/liveTranslateEngine';
 import type { StreamingSession } from './asr/engine';
 import { liveTranslateUrl, normalizeLiveTranslate } from '../shared/liveTranslate';
 import { isRendererCommand, type TrayCommand, type TrayMenuState } from '../shared/trayMenu';
 import { KnowledgeStore } from './knowledge';
 import { SessionStore } from './sessions';
-import { captureDisplayScreenshot, ScreenCaptureError, withCaptureWindowHidden } from './screenshot';
+import { captureDisplayScreenshot, scaleRegionRect, ScreenCaptureError, withCaptureWindowHidden } from './screenshot';
 import { DOC_EXTENSIONS, DocParseError, extractDocBatch, extractDocText } from './docparse';
 import { basename } from 'path';
 import { chatOnce, type ChatResult } from './llm/adapter';
@@ -64,7 +66,7 @@ import {
   buildVisionMessages,
   clampMemo,
 } from './llm/prompts';
-import type { AppInfo, KbSlot, LiveTranslateTestResult, TranscriptExportResult, PickedDocument, PublicSettings, ScreenshotMode, SessionAttachment, UiLang } from '../shared/protocol';
+import type { AppInfo, KbSlot, LiveTranslateTestResult, RegionPickResult, TranscriptExportResult, PickedDocument, PublicSettings, ScreenshotMode, SessionAttachment, UiLang } from '../shared/protocol';
 import {
   IPC,
   type AsrEvent,
@@ -109,6 +111,8 @@ addEventListener('keydown',e=>{if(e.key==='Escape')window.mc.regionCancel();});
 </script></body></html>`;
 
 app.setName('MeetingCopilot');
+/** electron-builder appId; the window-capture helper skips this app's windows */
+const APP_BUNDLE_ID = 'io.github.barryshen1.meetingcopilot';
 
 // E2E/demo hook: run against an isolated profile — must precede the
 // single-instance lock so a test instance never collides with a real one
@@ -1113,93 +1117,107 @@ function bootstrap(): void {
     ipcMain.handle(IPC.sessionsLoad, () => sessionStore.load());
     ipcMain.on(IPC.sessionsSave, (_e, data) => sessionStore.save(data));
 
-    // ---- region screenshot: capture full screen, let the user drag a region
-    // on a selection overlay that shows the capture as its (opaque) background.
+    // ---- 框选: capture every display and put a selection overlay on each, so
+    // the region can be dragged on whichever screen holds it (the overlays
+    // show the capture as their opaque background and are content-protected).
     // Content protection is best-effort; ScreenCaptureKit may still show it
-    // to a third-party live screen share. Returns the cropped image dataURL. ----
-    let regionResolve: ((r: { x: number; y: number; width: number; height: number } | null) => void) | null = null;
-    let pendingRegionImage: string | null = null;
-    let regionWin: BrowserWindow | null = null;
+    // to a third-party live screen share. Resolves with the cropped image. ----
+    type RegionRect = { x: number; y: number; width: number; height: number };
+    interface RegionOverlay { win: BrowserWindow; display: Electron.Display; image: Electron.NativeImage }
+    let regionOverlays: RegionOverlay[] = [];
+    let regionResolve: ((picked: { overlay: RegionOverlay; rect: RegionRect } | null) => void) | null = null;
 
-    ipcMain.handle(IPC.regionImage, () => pendingRegionImage);
-    ipcMain.on(IPC.regionRect, (_e, r) => {
-      const f = regionResolve;
+    const closeRegionOverlays = (): void => {
+      const open = regionOverlays;
+      regionOverlays = [];
+      for (const o of open) if (!o.win.isDestroyed()) o.win.close();
+    };
+    const finishRegion = (picked: { overlay: RegionOverlay; rect: RegionRect } | null): void => {
+      const resolve = regionResolve;
       regionResolve = null;
-      regionWin?.close();
-      f?.(r);
-    });
-    ipcMain.on(IPC.regionCancel, () => {
-      const f = regionResolve;
-      regionResolve = null;
-      regionWin?.close();
-      f?.(null);
-    });
+      closeRegionOverlays();
+      resolve?.(picked);
+    };
+    const overlayFor = (senderId: number) =>
+      regionOverlays.find((o) => !o.win.isDestroyed() && o.win.webContents.id === senderId);
 
-    ipcMain.handle(IPC.regionPick, async () => {
-      if (screenCaptureInProgress || nativeFileDialogsOpen || regionWin) return null;
+    ipcMain.handle(IPC.regionImage, (e) => overlayFor(e.sender.id)?.image.toDataURL() ?? null);
+    ipcMain.on(IPC.regionRect, (e, r: RegionRect) => {
+      const overlay = overlayFor(e.sender.id);
+      finishRegion(overlay && r ? { overlay, rect: r } : null);
+    });
+    ipcMain.on(IPC.regionCancel, () => finishRegion(null));
+
+    ipcMain.handle(IPC.regionPick, async (): Promise<RegionPickResult> => {
+      if (screenCaptureInProgress || regionOverlays.length) return {};
+      if (nativeFileDialogsOpen) return { error: T().screenshotDialogOpen };
+      if (macScreenPermissionMissing()) return { error: screenPermissionError().message };
       screenCaptureInProgress = true;
       try {
-        return await withCaptureWindowHidden(win ?? undefined, async () => {
-          const disp = screen.getDisplayNearestPoint(screen.getCursorScreenPoint());
-          const sf = disp.scaleFactor;
-          const w = Math.round(disp.size.width * sf);
-          const h = Math.round(disp.size.height * sf);
-          const sources = await desktopCapturer.getSources({ types: ['screen'], thumbnailSize: { width: w, height: h } });
-          const src = sources.find((s) => s.display_id === String(disp.id));
-          if (!src || src.thumbnail.isEmpty()) return null;
-          const full = src.thumbnail;
-          pendingRegionImage = full.toDataURL();
+        return await withCaptureWindowHidden(win ?? undefined, async (): Promise<RegionPickResult> => {
+          const displays = screen.getAllDisplays();
+          const sources = await desktopCapturer.getSources({
+            types: ['screen'],
+            thumbnailSize: {
+              width: Math.max(...displays.map((d) => Math.round(d.size.width * d.scaleFactor))),
+              height: Math.max(...displays.map((d) => Math.round(d.size.height * d.scaleFactor))),
+            },
+          });
+          const captured = displays
+            .map((display) => ({ display, image: sources.find((s) => s.display_id === String(display.id))?.thumbnail }))
+            .filter((c): c is { display: Electron.Display; image: Electron.NativeImage } => !!c.image && !c.image.isEmpty());
+          if (!captured.length) return { error: T().screenshotUnavailable };
+          const cursorDisplay = screen.getDisplayNearestPoint(screen.getCursorScreenPoint());
 
-          const rect = await new Promise<{ x: number; y: number; width: number; height: number } | null>((resolve) => {
+          const picked = await new Promise<{ overlay: RegionOverlay; rect: RegionRect } | null>((resolve) => {
             regionResolve = resolve;
-            const b = disp.bounds;
-            const ov = new BrowserWindow({
-              x: b.x,
-              y: b.y,
-              width: b.width,
-              height: b.height,
-              frame: false,
-              alwaysOnTop: true,
-              skipTaskbar: true,
-              hasShadow: false,
-              resizable: false,
-              movable: false,
-              fullscreenable: false,
-              enableLargerThanScreen: true,
-              webPreferences: { preload: join(__dirname, '../preload/index.js'), contextIsolation: true },
-            });
-            regionWin = ov;
-            ov.setContentProtection(true);
-            ov.setAlwaysOnTop(true, 'screen-saver');
-            ov.on('closed', () => {
-              if (regionResolve) {
-                const f = regionResolve;
-                regionResolve = null;
-                f(null);
-              }
-              regionWin = null;
-            });
-            void ov.loadURL('data:text/html;charset=utf-8,' + encodeURIComponent(regionOverlayHtml(T().regionTip)));
+            for (const c of captured) {
+              const b = c.display.bounds;
+              const ov = new BrowserWindow({
+                x: b.x,
+                y: b.y,
+                width: b.width,
+                height: b.height,
+                show: false,
+                frame: false,
+                alwaysOnTop: true,
+                skipTaskbar: true,
+                hasShadow: false,
+                resizable: false,
+                movable: false,
+                fullscreenable: false,
+                enableLargerThanScreen: true,
+                webPreferences: { preload: join(__dirname, '../preload/index.js'), contextIsolation: true },
+              });
+              const entry: RegionOverlay = { win: ov, display: c.display, image: c.image };
+              regionOverlays.push(entry);
+              ov.setContentProtection(true);
+              ov.setAlwaysOnTop(true, 'screen-saver');
+              // closing an overlay any other way (⌘W) cancels the whole pick
+              ov.on('closed', () => {
+                if (regionResolve) finishRegion(null);
+              });
+              ov.once('ready-to-show', () => {
+                if (ov.isDestroyed()) return;
+                ov.show();
+                if (c.display.id === cursorDisplay.id) ov.focus();
+              });
+              void ov.loadURL('data:text/html;charset=utf-8,' + encodeURIComponent(regionOverlayHtml(T().regionTip)));
+            }
           });
 
-          const img = pendingRegionImage;
-          pendingRegionImage = null;
-          if (!rect || rect.width < 4 || rect.height < 4 || !img) return null;
-          try {
-            const cropped = full.crop({
-              x: Math.round(rect.x * sf),
-              y: Math.round(rect.y * sf),
-              width: Math.round(rect.width * sf),
-              height: Math.round(rect.height * sf),
-            });
-            return cropped.toDataURL();
-          } catch (e) {
-            console.error('[region] crop failed:', (e as Error).message);
-            return null;
-          }
+          if (!picked || picked.rect.width < 4 || picked.rect.height < 4) return {};
+          const { image, display } = picked.overlay;
+          const crop = scaleRegionRect(picked.rect, display.bounds, image.getSize());
+          if (!crop) return {};
+          return { image: image.crop(crop).toDataURL() };
         });
+      } catch (e) {
+        console.error('[region] capture failed:', (e as Error).message);
+        return { error: T().screenshotUnavailable };
       } finally {
-        pendingRegionImage = null;
+        if (regionResolve) finishRegion(null);
+        closeRegionOverlays();
         screenCaptureInProgress = false;
       }
     });
@@ -1366,6 +1384,52 @@ function bootstrap(): void {
       }
     });
 
+    /** macOS: is Screen Recording granted to THIS build? (Ad-hoc builds lose it
+     * on every rebuild; without it captures silently return only the wallpaper.) */
+    function macScreenPermissionMissing(): boolean {
+      return process.platform === 'darwin' && systemPreferences.getMediaAccessStatus('screen') !== 'granted';
+    }
+
+    /** say why nothing was captured, and open the pane where it is fixed */
+    function screenPermissionError(): Error {
+      void shell
+        .openExternal('x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture')
+        .catch(() => undefined);
+      return new Error(T().screenPermissionNeeded);
+    }
+
+    /**
+     * 📷: on macOS the window the user is working in (Chrome, a PDF, an IDE…),
+     * captured on its own — MeetingCopilot never appears in it and stays put.
+     * Falls back to the display under the pointer when no app window is open.
+     */
+    async function captureForShot(signal: AbortSignal, requestId: string, question: string): Promise<string> {
+      if (process.platform === 'darwin') {
+        try {
+          const shot = await captureWorkingWindow({
+            helperPath: windowShotHelperPath(getResourceRoot()),
+            excludePids: [process.pid],
+            excludeBundleIds: [APP_BUNDLE_ID],
+            signal,
+          });
+          console.log(`[shot] window "${shot.app}" ${shot.width}x${shot.height}`);
+          const name = windowLabel(shot.app, shot.title);
+          win?.webContents.send(IPC.llmEvent, {
+            requestId,
+            kind: 'label',
+            text: T().shotWindowLabel(name.length > 60 ? `${name.slice(0, 59)}…` : name, question),
+          } satisfies LlmEvent);
+          return shot.dataUrl;
+        } catch (error) {
+          if (signal.aborted) throw error;
+          if (error instanceof WindowShotError && error.code === 'permission') throw screenPermissionError();
+          console.warn(`[shot] window capture unavailable (${(error as Error).message}); capturing the display instead`);
+        }
+        if (macScreenPermissionMissing()) throw screenPermissionError();
+      }
+      return captureCurrentScreen(signal);
+    }
+
     async function captureCurrentScreen(signal: AbortSignal): Promise<string> {
       if (screenCaptureInProgress) throw new Error(T().screenshotBusy);
       if (nativeFileDialogsOpen) throw new Error(T().screenshotDialogOpen);
@@ -1407,7 +1471,7 @@ function bootstrap(): void {
       // region mode provides a pre-cropped image; else capture the full screen
       const imgP = payload.imageDataUrl
         ? Promise.resolve(payload.imageDataUrl)
-        : captureCurrentScreen(ac.signal);
+        : captureForShot(ac.signal, payload.requestId, payload.question);
       imgP
         .then((dataUrl) => {
           const attachments = screenshotMode === 'coding-test' ? undefined : payload.attachments;

@@ -46,6 +46,7 @@ export function AnswerSession({
   onClear,
   onFreeAsk,
   onShotAsk,
+  onShotError,
   screenshotMode,
   onScreenshotModeChange,
   codexModel,
@@ -79,6 +80,8 @@ export function AnswerSession({
   onClear: () => void;
   onFreeAsk: (question: string) => void;
   onShotAsk: (question: string, imageDataUrl?: string) => void;
+  /** 框选 failed before anything was captured (shown as an error turn) */
+  onShotError?: (message: string) => void;
   screenshotMode: ScreenshotMode;
   onScreenshotModeChange: (mode: ScreenshotMode) => void;
   /** Present only when Codex CLI generates answers. */
@@ -355,10 +358,14 @@ export function AnswerSession({
               aria-label={t.answer.regionShotTitle}
               onClick={async () => {
                 const q = inputRef.current?.value.trim() ?? '';
-                const img = await window.mc.pickRegion();
-                if (!img) return; // cancelled
+                const picked = await window.mc.pickRegion();
+                if (picked.error) {
+                  onShotError?.(picked.error);
+                  return;
+                }
+                if (!picked.image) return; // cancelled
                 if (inputRef.current) inputRef.current.value = '';
-                onShotAsk(q, img);
+                onShotAsk(q, picked.image);
               }}
             >
               {t.answer.regionShot}

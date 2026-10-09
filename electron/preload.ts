@@ -14,6 +14,7 @@ import {
   type ProviderTestRequest,
   type ProviderTestResult,
   type PublicSettings,
+  type RegionPickResult,
   type ScreenshotMode,
   type SessionAttachment,
   type SessionsFile,
@@ -74,8 +75,9 @@ export interface McApi {
     imageDataUrl?: string;
     screenshotMode?: ScreenshotMode;
   }): void;
-  /** capture full screen, drag a stealth region overlay; returns cropped dataURL or null */
-  pickRegion(): Promise<string | null>;
+  /** capture every display, drag a region on any of them (stealth overlays);
+   * returns the cropped image, an error to show, or neither when cancelled */
+  pickRegion(): Promise<RegionPickResult>;
   /** overlay-only: fetch the captured background image */
   regionImage(): Promise<string | null>;
   /** overlay-only: report chosen rect */

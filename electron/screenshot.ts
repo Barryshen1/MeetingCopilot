@@ -74,3 +74,23 @@ export async function captureDisplayScreenshot({
     return source.thumbnail.toDataURL();
   });
 }
+
+/**
+ * Map a 框选 rectangle (overlay CSS px = display DIP) onto the display's
+ * captured image, whatever size the capturer returned it at, clamped to the
+ * image. Null when nothing usable is left.
+ */
+export function scaleRegionRect(
+  rect: { x: number; y: number; width: number; height: number },
+  displayBounds: { width: number; height: number },
+  imageSize: { width: number; height: number },
+): { x: number; y: number; width: number; height: number } | null {
+  if (displayBounds.width <= 0 || displayBounds.height <= 0) return null;
+  const sx = imageSize.width / displayBounds.width;
+  const sy = imageSize.height / displayBounds.height;
+  const x = Math.min(Math.max(Math.round(rect.x * sx), 0), imageSize.width);
+  const y = Math.min(Math.max(Math.round(rect.y * sy), 0), imageSize.height);
+  const width = Math.min(Math.round(rect.width * sx), imageSize.width - x);
+  const height = Math.min(Math.round(rect.height * sy), imageSize.height - y);
+  return width >= 2 && height >= 2 ? { x, y, width, height } : null;
+}

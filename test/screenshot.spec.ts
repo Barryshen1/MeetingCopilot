@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { DesktopCapturerSource } from 'electron';
-import { captureDisplayScreenshot, ScreenCaptureError, withCaptureWindowHidden } from '../electron/screenshot';
+import { captureDisplayScreenshot, scaleRegionRect, ScreenCaptureError, withCaptureWindowHidden } from '../electron/screenshot';
 
 const display = { id: 2, size: { width: 1920, height: 1080 }, scaleFactor: 2 };
 const source = (id: string, empty = false) => ({
@@ -141,5 +141,25 @@ describe('current-display screenshots', () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+});
+
+describe('scaleRegionRect', () => {
+  it('maps overlay pixels onto a retina capture', () => {
+    expect(scaleRegionRect({ x: 10, y: 20, width: 100, height: 50 }, { width: 1470, height: 956 }, { width: 2940, height: 1912 }))
+      .toEqual({ x: 20, y: 40, width: 200, height: 100 });
+  });
+
+  it('uses the size the capturer actually returned (a smaller display in a larger thumbnail box)', () => {
+    // a 2560x1440 display delivered at 1.5x because the request was sized for another screen
+    expect(scaleRegionRect({ x: 100, y: 100, width: 200, height: 100 }, { width: 2560, height: 1440 }, { width: 3840, height: 2160 }))
+      .toEqual({ x: 150, y: 150, width: 300, height: 150 });
+  });
+
+  it('clamps to the image and rejects a selection with nothing left', () => {
+    expect(scaleRegionRect({ x: 1400, y: 900, width: 500, height: 500 }, { width: 1470, height: 956 }, { width: 1470, height: 956 }))
+      .toEqual({ x: 1400, y: 900, width: 70, height: 56 });
+    expect(scaleRegionRect({ x: 1469, y: 0, width: 50, height: 50 }, { width: 1470, height: 956 }, { width: 1470, height: 956 })).toBeNull();
+    expect(scaleRegionRect({ x: 0, y: 0, width: 10, height: 10 }, { width: 0, height: 0 }, { width: 10, height: 10 })).toBeNull();
   });
 });

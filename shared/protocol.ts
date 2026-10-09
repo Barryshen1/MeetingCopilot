@@ -562,7 +562,15 @@ export interface LlmAskPayload {
 export type LlmEvent =
   | { requestId: string; kind: 'delta'; text: string }
   | { requestId: string; kind: 'done'; text: string }
-  | { requestId: string; kind: 'error'; message: string };
+  | { requestId: string; kind: 'error'; message: string }
+  /** replace the turn's label (a screenshot names the window it captured) */
+  | { requestId: string; kind: 'label'; text: string };
+
+/** 框选 result: the cropped image, or why there is none (no error = cancelled) */
+export interface RegionPickResult {
+  image?: string;
+  error?: string;
+}
 
 // ---------- System tray (main -> renderer) ----------
 
@@ -630,9 +638,9 @@ export const IPC = {
   sessionsLoad: 'sessions:load',
   /** send: (SessionsFile) — persist sessions (debounced by renderer) */
   sessionsSave: 'sessions:save',
-  /** invoke: () => string|null — full-screen capture, drag a region (stealth overlay), returns cropped dataURL */
+  /** invoke: () => RegionPickResult — capture every display, drag a region on one (stealth overlays) */
   regionPick: 'region:pick',
-  /** invoke (overlay→main): () => string|null — the captured full-screen image to draw */
+  /** invoke (overlay→main): () => string|null — the captured image of THIS overlay's display */
   regionImage: 'region:image',
   /** send (overlay→main): (rect) — chosen region */
   regionRect: 'region:rect',
