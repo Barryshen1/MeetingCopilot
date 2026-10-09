@@ -25,7 +25,7 @@ import { CODEX_FAST_SERVICE_TIER, codexServiceTier } from '../shared/codex';
 import { deriveServiceHealth } from '../shared/healthState';
 import { LoopbackCapture } from './audio/loopbackCapture';
 import { MicCapture, listMics } from './audio/micCapture';
-import { TranscriptPanel } from './components/TranscriptPanel';
+import { TranscriptPanel, type LivePartial } from './components/TranscriptPanel';
 import { SettingsPanel } from './components/SettingsPanel';
 import { ServiceHealthPanel } from './components/ServiceHealthPanel';
 import { DiagnosticsPanel } from './components/DiagnosticsPanel';
@@ -93,7 +93,7 @@ export function App() {
   const [oeai, setOeai] = useState(false);
   const [mics, setMics] = useState<{ deviceId: string; label: string }[]>([]);
   const [micActive, setMicActive] = useState(false);
-  const [partials, setPartials] = useState<{ them?: string; me?: string }>({});
+  const [partials, setPartials] = useState<{ them?: LivePartial; me?: LivePartial }>({});
   const [sessions, setSessions] = useState<StoredSession[]>([]);
   const [currentId, setCurrentId] = useState<string>('');
   const [kbNotice, setKbNotice] = useState<string | null>(null);
@@ -325,7 +325,7 @@ export function App() {
       } else if (ev.kind === 'error') {
         setAsr((s) => ({ ...s, phase: ev.fatal ? 'error' : s.phase, lastError: ev.message }));
       } else if (ev.kind === 'partial') {
-        setPartials((p) => ({ ...p, [ev.speaker]: ev.text }));
+        setPartials((p) => ({ ...p, [ev.speaker]: { text: ev.text, translation: ev.translation } }));
       } else if (ev.kind === 'segment') {
         setPartials((p) => ({ ...p, [ev.speaker]: undefined })); // final replaces the live partial
         const e2eMs = Date.now() - ev.timings.speechEndTs;
@@ -352,6 +352,8 @@ export function App() {
                     text: ev.text,
                     lang: ev.lang,
                     speaker: ev.speaker,
+                    // 实时翻译: the translation arrives with the sentence
+                    ...(ev.translation ? { translation: ev.translation } : {}),
                     startTs: ev.timings.speechStartTs,
                     endTs: ev.timings.speechEndTs,
                     e2eMs,
@@ -592,6 +594,26 @@ export function App() {
     },
     [setSeg],
   );
+
+  /** 实时翻译 for 对方: hot-switched in the running engine, no restart */
+  const toggleLiveTranslate = useCallback(async () => {
+    const previous = settingsRef.current;
+    const lt = previous?.asr.liveTranslate;
+    if (!previous || !lt?.available) return;
+    const enabled = !lt.enabled;
+    const next = { ...previous, asr: { ...previous.asr, liveTranslate: { ...lt, enabled } } };
+    settingsRef.current = next;
+    setSettings(next);
+    try {
+      const saved = await window.mc.setSettings({ asr: { liveTranslate: { enabled } } });
+      settingsRef.current = saved;
+      setSettings(saved);
+    } catch (error) {
+      settingsRef.current = previous;
+      setSettings(previous);
+      console.error('[ui] live translate switch failed:', error);
+    }
+  }, []);
 
   const toggleStealth = useCallback(async () => {
     if (!settings) return;
@@ -1103,6 +1125,8 @@ export function App() {
           onExport={() => void exportTranscriptNow()}
           exportNotice={exportNotice}
           onRevealExport={(path) => window.mc.revealExport(path)}
+          liveTranslate={settings?.asr.liveTranslate}
+          onToggleLiveTranslate={() => void toggleLiveTranslate()}
           oeai={oeai}
         />
         <AnswerSession

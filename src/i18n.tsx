@@ -96,6 +96,12 @@ const zh = {
     jumpLatest: '↓ 回到最新',
     answerSelection: '⚡回答选中',
     oeaiHint: 'OEAI 口试场景：开启「持续答」后自动回应考官提问',
+    liveTranslate: '实时翻译',
+    liveTranslateOnTitle: (lang: string) =>
+      `实时翻译已开启：对方的话正在实时译成${lang}（原文/译文对照）。点击关闭，改回普通转写。`,
+    liveTranslateOffTitle: (lang: string) =>
+      `开启后，对方的话会用阿里云百炼 LiveTranslate 实时译成${lang}，原文和译文对照显示（按音频时长计费）。`,
+    liveTranslateTargets: { zh: '中文', en: '英文' } as Record<'zh' | 'en', string>,
   },
   answer: {
     kindTag: {
@@ -502,6 +508,20 @@ const zh = {
     exportChangeFolder: '更改位置…',
     exportOpenFolder: '打开文件夹',
     exportHint: '只导出转录（Markdown），不含 AI 回复和翻译。转录栏的「导出」按钮可以随时手动导出。',
+    liveTranslateLabel: '实时翻译（对方）',
+    liveTranslateOn: '开启',
+    liveTranslateOff: '关闭',
+    liveTranslateTarget: '译成',
+    liveTranslateHint:
+      '用阿里云百炼 qwen3.8-livetranslate-flash-realtime 把对方说的话实时翻译，原文和译文对照显示；「我」仍用普通转写，AI 回答仍以原文为准。与「云端流式」共用同一个工作空间地址和 API Key（需在百炼控制台开通该模型），按音频时长计费（输入约 7 Token/秒，只输出文字）。转录栏的「实时翻译」按钮可以随时开关。',
+    liveTranslateUnavailable:
+      '需要先在上方「云端流式」填写并保存阿里云百炼的工作空间 WebSocket 地址和 API Key，才能使用实时翻译。',
+    liveTranslateTest: '测试连接',
+    liveTranslateTesting: '测试中…',
+    liveTranslateTestTitle: '用已保存的工作空间地址和 Key 打开一次翻译会话（不发送音频）',
+    liveTranslateTestOk: (ms: number) => `连接成功（${(ms / 1000).toFixed(1)} 秒）`,
+    liveTranslateTestFail: (msg: string) => `连接失败：${msg}`,
+    liveTranslateTestUnavailable: '还没有保存可用的工作空间地址和 Key，请先保存。',
     autoLaunch: '开机自动启动',
     autoLaunchOn: '开启',
     autoLaunchOff: '关闭（默认）',
@@ -604,6 +624,12 @@ const en: Dict = {
     jumpLatest: '↓ Latest',
     answerSelection: '⚡ Answer selection',
     oeaiHint: 'OEAI oral-interview mode: turn on Auto to answer examiner prompts',
+    liveTranslate: 'Live translate',
+    liveTranslateOnTitle: (lang: string) =>
+      `Live translation is on: the other party is translated into ${lang} as they speak (original and translation side by side). Click to go back to plain transcription.`,
+    liveTranslateOffTitle: (lang: string) =>
+      `Turn on to translate the other party into ${lang} as they speak with Alibaba Cloud Model Studio LiveTranslate, original and translation side by side (billed per audio second).`,
+    liveTranslateTargets: { zh: 'Chinese', en: 'English' },
   },
   answer: {
     kindTag: {
@@ -1013,6 +1039,20 @@ const en: Dict = {
     exportChangeFolder: 'Change folder…',
     exportOpenFolder: 'Open folder',
     exportHint: 'Exports the transcript only (Markdown), without AI answers or translations. The Export button in the transcript pane exports at any time.',
+    liveTranslateLabel: 'Live translation (them)',
+    liveTranslateOn: 'On',
+    liveTranslateOff: 'Off',
+    liveTranslateTarget: 'Into',
+    liveTranslateHint:
+      'Translates what the other party says as they speak with Alibaba Cloud Model Studio qwen3.8-livetranslate-flash-realtime, original and translation side by side; “Me” keeps plain transcription and AI answers still use the original. It shares the workspace URL and API key of “Cloud streaming” (enable the model in the Model Studio console) and is billed per audio second (input about 7 tokens/s, text output only). The Live translate button in the transcript pane switches it at any time.',
+    liveTranslateUnavailable:
+      'Save an Alibaba Cloud Model Studio workspace WebSocket URL and API key under “Cloud streaming” above to use live translation.',
+    liveTranslateTest: 'Test connection',
+    liveTranslateTesting: 'Testing…',
+    liveTranslateTestTitle: 'Open one translation session with the saved workspace URL and key (no audio is sent)',
+    liveTranslateTestOk: (ms: number) => `Connected (${(ms / 1000).toFixed(1)} s)`,
+    liveTranslateTestFail: (msg: string) => `Connection failed: ${msg}`,
+    liveTranslateTestUnavailable: 'No usable workspace URL and key are saved yet; save them first.',
     autoLaunch: 'Start at login',
     autoLaunchOn: 'On',
     autoLaunchOff: 'Off (default)',

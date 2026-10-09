@@ -24,6 +24,7 @@ This is [Barryshen1's personal fork](https://github.com/Barryshen1/MeetingCopilo
 - **Codex CLI answers:** use your installed Codex CLI and its existing sign-in for answers, translation, meeting memo and screenshot questions. See [Codex CLI setup](docs/CODEX_CLI.en.md) ([中文](docs/CODEX_CLI.zh-CN.md)). The integration was inspired by the CLI-provider workflow in [Natively](https://github.com/Natively-AI-assistant/natively-cluely-ai-assistant).
 - **Local macOS app:** build an Apple-silicon `.app` with `npm run dist:mac:dir`, or an ad-hoc-signed ZIP with `npm run dist:mac`. See [macOS installation](docs/user/INSTALL_MACOS.en.md).
 - **Transcription stays separate:** Codex CLI handles text and images; choose a local or cloud speech-recognition backend. On macOS 14.2+ the other party is recorded straight from what the Mac plays, without the microphone or a virtual audio device.
+- **Live translation:** the transcript pane's *Live translate* button sends the other party to Alibaba Cloud Model Studio `qwen3.8-livetranslate-flash-realtime` and shows the original next to a Chinese (or English) translation; see [Live translation](#live-translation-them).
 
 The upstream downloads and demos below describe the original project. Upstream binaries do not include this fork's Codex CLI integration.
 
@@ -97,7 +98,7 @@ You can reopen the wizard any time from *⚙ Settings → Run the setup wizard a
 - 🥷 **Capture protection** — content protection plus a global hide/show hotkey. Windows excludes the window from supported captures; macOS cannot guarantee invisibility against modern ScreenCaptureKit clients.
 - 🩺 **Connection tests, service status and local diagnostics** — one click tells you whether a key, the network or the account is at fault (14 normalized error codes), and the diagnostics report is built locally with no keys, transcripts or imported document text in it.
 - 🔔 **System tray** — show/hide, start/stop transcription, new session, settings, service status, help and quit, all without a taskbar button. Optional start-at-login, off by default.
-- 🌗 **Dark / light / follow-system themes**, 3-step answer font size, latency HUD, inline translation, multi-session with fully isolated transcript + chat + material per meeting.
+- 🌗 **Dark / light / follow-system themes**, 3-step answer font size, latency HUD, inline translation and live translation of the other party, multi-session with fully isolated transcript + chat + material per meeting.
 
 | Dark | Light |
 |---|---|
@@ -135,6 +136,15 @@ The materials stay with that session when you switch conversations or restart th
 | Local Whisper turbo | ~2 s on supported Windows GPUs | free | ✅ fully local | DirectML on Windows; CPU fallback elsewhere |
 
 **Which one should you pick?** If you installed the packaged build, use a **cloud** backend: it needs one API key and nothing else. The **local** backends are an advanced option — free and fully private, but you have to bring your own Python environment and let the model weights download, and the installer ships neither.
+
+### Live translation (them)
+
+Once Model Studio *Cloud streaming* is configured, a **Live translate** button appears in the transcript pane header. While it is on, the other party's audio goes to `qwen3.8-livetranslate-flash-realtime`: one stream returns both the original and the translation, each sentence is shown as original / translation, and the live bubble streams the translation as the person speaks. “Me” keeps plain transcription; AI answers and meeting records still use the original text.
+
+- **Nothing extra to configure:** it reuses the Cloud-streaming workspace URL and API key, only with the `/api-ws/v1/realtime?model=…` path. Enable the model in the Model Studio console (Singapore or Beijing region).
+- **Switch it any time:** turning it on or off mid-meeting needs no restart; *Settings → Live translation (them)* chooses Chinese or English and tests the connection.
+- **Cost:** billed per audio second, about 7 input tokens per second; the app asks for text only, never dubbed audio. A translation session closes 30 s after the other party stops talking.
+- **Nothing said is lost:** if a translation session cannot connect (key, model not enabled, network), that audio is transcribed by the plain engine instead and translation is retried 60 s later.
 
 ## Local ASR & advanced setup
 

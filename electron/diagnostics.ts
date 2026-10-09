@@ -215,6 +215,7 @@ export function buildDiagnosticsReport(f: DiagnosticsFacts): string {
     `${pad('ASR backend')}: ${backend}`,
     `${pad('ASR provider')}: ${asrEndpoint}`,
     `${pad('ASR language')}: ${asr.language}`,
+    `${pad('Live translate')}: ${asr.liveTranslate?.enabled ? 'on' : 'off'} (${asr.liveTranslate?.model ?? 'default model'} → ${asr.liveTranslate?.target ?? 'zh'})`,
     `${pad('ASR worker')}: ready=${yesNo(f.asr.ready)} state=${f.asr.state ?? 'unknown'} ep=${f.asr.ep ?? 'unknown'} gpuSuspect=${yesNo(!!f.asr.gpuSuspect)}`,
     `${pad('LLM provider')}: ${s.llm.backend === 'codex-cli' ? `Codex CLI (${s.llm.codex?.model || 'CLI default model'})` : describeEndpoint(s.llm.baseUrl, s.llm.model, 'text-llm')}`,
     `${pad('LLM answer lang')}: ${s.llm.answerLang}`,

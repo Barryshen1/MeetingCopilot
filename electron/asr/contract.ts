@@ -15,6 +15,11 @@ export interface WorkerInit {
   language: 'auto' | string;
   /** cloud ASR provider (required when backend === 'cloud' | 'cloud-realtime') */
   cloud?: { baseUrl: string; model: string; apiKey: string };
+  /**
+   * live translation for the 对方 channel (Model Studio LiveTranslate); absent
+   * when not configured. `enabled` can be flipped later with a config message.
+   */
+  liveTranslate?: { url: string; apiKey: string; target: string; enabled: boolean };
 }
 
 export interface WorkerPcm {
@@ -30,6 +35,8 @@ export interface WorkerPcm {
 export interface WorkerConfig {
   type: 'config';
   language?: 'auto' | string;
+  /** turn 对方 live translation on/off without rebuilding the engine */
+  liveTranslate?: boolean;
 }
 
 /** Force-close any open speech segment (capture stop / user request). */
@@ -59,6 +66,8 @@ export interface WorkerSegment {
   text: string;
   lang?: string;
   speaker: 'them' | 'me';
+  /** live translation of `text` (LiveTranslate engine only) */
+  translation?: string;
   audioMs: number;
   speechStartTs: number;
   speechEndTs: number;
@@ -71,6 +80,8 @@ export interface WorkerPartial {
   type: 'partial';
   speaker: 'them' | 'me';
   text: string;
+  /** translation so far (LiveTranslate engine only) */
+  translation?: string;
 }
 
 export interface WorkerStatus {

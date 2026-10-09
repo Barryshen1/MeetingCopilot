@@ -53,6 +53,10 @@ export interface StreamingSentence {
   text: string;
   beginMs: number;
   endMs: number;
+  /** live-translation engines only: the translated text of this sentence */
+  translation?: string;
+  /** service-detected source language code (e.g. 'en'), when reported */
+  lang?: string;
 }
 
 export interface StreamingSessionCallbacks {
@@ -63,8 +67,9 @@ export interface StreamingSessionCallbacks {
    * the model and the workspace are all good, "the task started" is.
    */
   onReady?(): void;
-  /** transient partial for the sentence currently being spoken */
-  onPartial(text: string): void;
+  /** transient partial for the sentence currently being spoken (plus its
+   * translation so far, from live-translation engines) */
+  onPartial(text: string, translation?: string): void;
   /** a sentence the service finalized (its own endpointing, not our VAD) */
   onSentence(s: StreamingSentence): void;
   /** connection/task failure; the session is dead after this */

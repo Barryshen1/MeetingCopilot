@@ -40,6 +40,9 @@ import { revealAppWindow } from './windowReveal';
 import { applyWindowZoom } from './windowZoom';
 import { writeMeetingRecord } from './meetingRecords';
 import { MacSystemAudio, systemAudioHelperPath } from './macSystemAudio';
+import { LiveTranslateEngine } from './asr/liveTranslateEngine';
+import type { StreamingSession } from './asr/engine';
+import { liveTranslateUrl, normalizeLiveTranslate } from '../shared/liveTranslate';
 import { isRendererCommand, type TrayCommand, type TrayMenuState } from '../shared/trayMenu';
 import { KnowledgeStore } from './knowledge';
 import { SessionStore } from './sessions';
@@ -61,7 +64,7 @@ import {
   buildVisionMessages,
   clampMemo,
 } from './llm/prompts';
-import type { AppInfo, KbSlot, TranscriptExportResult, PickedDocument, PublicSettings, ScreenshotMode, SessionAttachment, UiLang } from '../shared/protocol';
+import type { AppInfo, KbSlot, LiveTranslateTestResult, TranscriptExportResult, PickedDocument, PublicSettings, ScreenshotMode, SessionAttachment, UiLang } from '../shared/protocol';
 import {
   IPC,
   type AsrEvent,
@@ -193,7 +196,16 @@ function bootstrap(): void {
       ep: whisperExecutionProvidersForPlatform(process.platform),
       language: a.language,
       cloud,
+      liveTranslate: buildLiveTranslateOptions(),
     };
+  }
+
+  /** 实时翻译 for 对方: the realtime slot's Model Studio workspace + key, any backend */
+  function buildLiveTranslateOptions() {
+    const lt = normalizeLiveTranslate(settings.data.asr.liveTranslate);
+    const url = liveTranslateUrl(settings.data.asr.realtime?.baseUrl, lt.model);
+    const apiKey = settings.getRealtimeAsrApiKey() ?? '';
+    return url && apiKey ? { url, apiKey, target: lt.target, enabled: lt.enabled } : undefined;
   }
 
   /** start the ASR worker; a local ws:// realtime backend auto-spawns the
@@ -834,13 +846,16 @@ function bootstrap(): void {
       if (patch.ui?.lang !== undefined) refreshTray();
       if (patch.ui?.autoLaunch !== undefined) applyAutoLaunch(patch.ui.autoLaunch);
       // backend/cloud change => rebuild the ASR worker with the new engine.
-      // language alone can hot-update without a restart.
+      // language and the 实时翻译 on/off switch hot-update without a restart.
+      const ltPatch = patch.asr?.liveTranslate;
       if (
         patch.asr &&
         (patch.asr.backend !== undefined ||
           patch.asr.cloud !== undefined ||
           patch.asr.realtime !== undefined ||
-          patch.asr.localRealtime !== undefined)
+          patch.asr.localRealtime !== undefined ||
+          ltPatch?.model !== undefined ||
+          ltPatch?.target !== undefined)
       ) {
         // While the wizard is up the engine must NOT be rebuilt per key save:
         // on a first run nothing is configured yet (a restart would spawn the
@@ -849,8 +864,11 @@ function bootstrap(): void {
         // plan as one final patch; the restart happens exactly once after it.
         if (setupWin || !settings.data.onboarding.completed) pendingAsrRestart = true;
         else void asr.stop().then(() => startAsr());
-      } else if (patch.asr?.language) {
-        asr.setLanguage(patch.asr.language);
+      } else {
+        if (patch.asr?.language) asr.setLanguage(patch.asr.language);
+        if (ltPatch?.enabled !== undefined) {
+          asr.setLiveTranslate(normalizeLiveTranslate(settings.data.asr.liveTranslate).enabled);
+        }
       }
       return publicSettings();
     });
@@ -1309,6 +1327,43 @@ function bootstrap(): void {
         { onDelta: () => {} },
       );
       return r.text;
+    });
+
+    // 实时翻译 connection check: open one session with the SAVED realtime
+    // workspace + key and finish it as soon as the service accepts it (no
+    // audio is sent, so nothing is billed beyond the handshake)
+    ipcMain.handle(IPC.liveTranslateTest, async (): Promise<LiveTranslateTestResult> => {
+      const lt = buildLiveTranslateOptions();
+      if (!lt) return { ok: false, error: 'UNAVAILABLE' };
+      const t0 = Date.now();
+      let session: StreamingSession | null = null;
+      try {
+        const engine = await LiveTranslateEngine.load(lt);
+        await new Promise<void>((resolve, reject) => {
+          const timer = setTimeout(() => reject(new Error('timed out after 15 s')), 15_000);
+          session = engine.openSession({
+            onReady: () => {
+              clearTimeout(timer);
+              resolve();
+            },
+            onPartial: () => undefined,
+            onSentence: () => undefined,
+            onError: (message) => {
+              clearTimeout(timer);
+              reject(new Error(message));
+            },
+          });
+        });
+        return { ok: true, latencyMs: Date.now() - t0 };
+      } catch (error) {
+        return { ok: false, error: redactSecrets((error as Error).message).slice(0, 300) };
+      } finally {
+        const s = session as StreamingSession | null;
+        if (s) {
+          const closed = s.close().catch(() => undefined);
+          await Promise.race([closed, new Promise<void>((r) => setTimeout(r, 3000))]);
+        }
+      }
     });
 
     async function captureCurrentScreen(signal: AbortSignal): Promise<string> {

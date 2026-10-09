@@ -16,10 +16,12 @@ import {
   isJunkTranscript,
   isStreamingEngine,
   type AsrEngine,
+  type StreamingAsrEngine,
   type StreamingSession,
 } from './engine';
 import { CloudAsrEngine } from './cloudEngine';
 import { AliyunRealtimeEngine } from './aliyunRealtimeEngine';
+import { LiveTranslateEngine } from './liveTranslateEngine';
 import { LanguageRouter, type LidResult } from './langRouter';
 import type { WorkerInit, WorkerInMessage, WorkerOutMessage } from './contract';
 
@@ -84,6 +86,39 @@ const RING_MS = 300;
 /** close the WS after this much silence (cost gate; service dies at ~23 s idle anyway) */
 const STREAM_IDLE_CLOSE_MS = 10_000;
 
+// ---- 对方 live translation (LiveTranslate engine replaces the ASR for 'them') ----
+let ltEngine: LiveTranslateEngine | null = null;
+let ltEnabled = false;
+/** after a failed connect, 对方 uses the plain engine until this time */
+let ltSuspendedUntil = 0;
+const LT_RETRY_AFTER_MS = 60_000;
+/** audio sent to a translate session that is not live yet, replayed into the
+ * plain engine if that session never comes up (so nothing said is lost) */
+const ltBacklog: Record<Channel, Float32Array[] | null> = { them: null, me: null };
+const LT_BACKLOG_MAX_FRAMES = 300; // ~30 s of 100 ms frames
+/** a translate session takes ~3 s to come up (measured) and keeps the
+ * meeting's context, so it stays open through longer pauses than plain ASR */
+const LT_IDLE_CLOSE_MS = 30_000;
+const streamIsLt: Record<Channel, boolean> = { them: false, me: false };
+
+function ltActive(): boolean {
+  return !!ltEngine && ltEnabled && Date.now() >= ltSuspendedUntil;
+}
+
+/** the live-stream engine for a channel, or null = VAD-segment path */
+function streamEngineFor(ch: Channel): StreamingAsrEngine | null {
+  if (ch === 'them' && ltActive()) return ltEngine;
+  return engine && isStreamingEngine(engine) ? engine : null;
+}
+
+/** service language codes → the names the transcript UI shows */
+function langName(code: string | undefined): string | undefined {
+  if (!code) return undefined;
+  if (code === 'en' || code.startsWith('en-')) return 'english';
+  if (code === 'zh' || code.startsWith('zh-')) return 'chinese';
+  return code;
+}
+
 setInterval(() => {
   if (!engine || transcribing || shuttingDown || queue.length > 0) return;
   if (engine.ep.startsWith('cloud')) return; // cloud is stateless — nothing to keep warm
@@ -125,6 +160,44 @@ async function handleInit(init: WorkerInit): Promise<void> {
     post({ type: 'status', state: 'listening', queuedSegments: 0 });
   } catch (e) {
     post({ type: 'error', message: `engine load failed: ${(e as Error).message}`, fatal: true });
+    return;
+  }
+  if (init.liveTranslate) {
+    try {
+      ltEngine = await LiveTranslateEngine.load({
+        url: init.liveTranslate.url,
+        apiKey: init.liveTranslate.apiKey,
+        target: init.liveTranslate.target,
+      });
+      ltEnabled = init.liveTranslate.enabled;
+      console.log(`[worker] live translate ready (target=${init.liveTranslate.target}, ${ltEnabled ? 'on' : 'off'})`);
+    } catch (e) {
+      post({ type: 'error', message: `live translation unavailable: ${(e as Error).message}`, fatal: false });
+    }
+  }
+}
+
+/** 实时翻译 on/off mid-meeting: route 对方 to the other engine from now on */
+function setLiveTranslate(on: boolean): void {
+  const before = streamEngineFor('them');
+  ltEnabled = on;
+  ltSuspendedUntil = 0;
+  const after = streamEngineFor('them');
+  console.log(`[worker] live translate ${on ? 'on' : 'off'}${ltEngine ? '' : ' (not configured)'}`);
+  if (before === after) return;
+  const speaking = vads.them.state === 'speech';
+  if (!before) {
+    // VAD-segment path → live stream: transcribe what was already collected
+    handleVadEvents(vads.them.flush(), 'them');
+  } else {
+    closeStream('them');
+    // live stream → VAD-segment path: the open utterance was already streamed
+    if (!after) vads.them.flush();
+  }
+  // mid-sentence: carry on in the new engine instead of waiting for a pause
+  if (after && speaking) {
+    lastSpeechAt.them = Date.now();
+    ensureStream('them', after);
   }
 }
 
@@ -148,15 +221,25 @@ function handleVadEvents(events: ReturnType<VadSegmenter['push']>, channel: Chan
 // ---- true-streaming path: VAD is only the session gate; the service does
 // sentence endpointing and pushes partial/final text itself ----
 
-function ensureStream(ch: Channel): void {
-  if (streams[ch] || !engine || !isStreamingEngine(engine)) return;
-  const ringDur = ring[ch].reduce((a, c) => a + c.ms, 0);
-  streamEpoch[ch] = Date.now() - ringDur;
+function ensureStream(ch: Channel, se: StreamingAsrEngine, replay?: Float32Array[]): void {
+  if (streams[ch]) return;
+  const isLt = se === ltEngine;
+  const preroll = replay ?? ring[ch].map((c) => c.pcm);
+  const prerollMs = preroll.reduce((a, p) => a + (p.length / 16000) * 1000, 0);
+  streamEpoch[ch] = Date.now() - prerollMs;
   const epoch = streamEpoch[ch];
-  const session = engine.openSession(
+  const openedAt = Date.now();
+  let session: StreamingSession | null = null;
+  session = se.openSession(
     {
-      onPartial: (text) => {
-        if (!shuttingDown && !isJunkTranscript(text)) post({ type: 'partial', speaker: ch, text });
+      onReady: () => {
+        if (!isLt) return;
+        ltBacklog[ch] = null; // live: nothing to replay any more
+        console.log(`[worker] live translate session ready ch=${ch} in ${Date.now() - openedAt}ms`);
+      },
+      onPartial: (text, translation) => {
+        if (shuttingDown || isJunkTranscript(text)) return;
+        post({ type: 'partial', speaker: ch, text, ...(translation ? { translation } : {}) });
       },
       onSentence: (s) => {
         if (shuttingDown || isJunkTranscript(s.text)) return;
@@ -165,8 +248,9 @@ function ensureStream(ch: Channel): void {
           type: 'segment',
           id: ++segCounter,
           text: s.text,
-          lang: undefined,
+          lang: langName(s.lang),
           speaker: ch,
+          ...(s.translation ? { translation: s.translation } : {}),
           audioMs: Math.max(0, s.endMs - s.beginMs),
           speechStartTs: epoch + s.beginMs,
           speechEndTs: epoch + s.endMs,
@@ -176,34 +260,65 @@ function ensureStream(ch: Channel): void {
         });
       },
       onError: (message) => {
-        streams[ch] = null;
-        if (!shuttingDown) post({ type: 'error', message: `streaming ASR (${ch}): ${message}`, fatal: false });
+        const current = streams[ch] === session;
+        if (current) streams[ch] = null;
+        if (shuttingDown) return;
+        const backlog = isLt ? ltBacklog[ch] : null;
+        if (isLt) ltBacklog[ch] = null;
+        if (backlog && current) {
+          // the translate session never came up (key, model not enabled,
+          // network): fall back to the plain engine for a while and replay
+          // the audio it swallowed, so nothing said is lost
+          ltSuspendedUntil = Date.now() + LT_RETRY_AFTER_MS;
+          post({
+            type: 'error',
+            message: `live translation failed, transcribing ${ch} without translation for ${LT_RETRY_AFTER_MS / 1000} s: ${message}`,
+            fatal: false,
+          });
+          const plain = streamEngineFor(ch);
+          if (plain && plain !== ltEngine) ensureStream(ch, plain, backlog);
+          return;
+        }
+        post({
+          type: 'error',
+          message: `${isLt ? 'live translation' : 'streaming ASR'} (${ch}): ${message}`,
+          fatal: false,
+        });
+        // dropped mid-sentence after working for a while (network blip,
+        // service session limit): reconnect now instead of after the pause
+        const next = streamEngineFor(ch);
+        if (current && next && vads[ch].state === 'speech' && Date.now() - openedAt > 5000) {
+          ensureStream(ch, next);
+        }
       },
     },
     { language },
   );
   // flush pre-roll first so the first syllable survives, then live frames follow
-  for (const c of ring[ch]) session.push(c.pcm);
+  for (const pcm of preroll) session.push(pcm);
   ring[ch] = [];
+  ltBacklog[ch] = isLt ? [...preroll] : null;
+  streamIsLt[ch] = isLt;
   streams[ch] = session;
-  console.log(`[worker] stream open ch=${ch}`);
+  console.log(`[worker] stream open ch=${ch}${isLt ? ' (live translate)' : ''}`);
 }
 
 function closeStream(ch: Channel): void {
   const s = streams[ch];
   if (!s) return;
   streams[ch] = null;
+  ltBacklog[ch] = null;
   console.log(`[worker] stream close ch=${ch}`);
   void s.close().catch(() => undefined);
 }
 
-function handleStreamingPcm(pcm: Float32Array, ch: Channel, captureTs: number): void {
+function handleStreamingPcm(pcm: Float32Array, ch: Channel, captureTs: number, se: StreamingAsrEngine): void {
   const events = vads[ch].push(pcm, captureTs);
   for (const ev of events) {
     if (ev.type === 'speech-start') {
       lastSpeechAt[ch] = Date.now();
       post({ type: 'status', state: 'speech', queuedSegments: 0 });
-      ensureStream(ch);
+      ensureStream(ch, se);
     } else if (ev.type === 'segment') {
       // local VAD closed the utterance; keep the WS open for the service's own
       // finalization + possible follow-up sentence (idle timer reaps it)
@@ -218,6 +333,11 @@ function handleStreamingPcm(pcm: Float32Array, ch: Channel, captureTs: number): 
     // stream every frame (speech AND trailing silence) so the service's
     // sentence timing stays continuous; cost is bounded by the idle close
     streams[ch]!.push(pcm);
+    const backlog = ltBacklog[ch];
+    if (backlog) {
+      backlog.push(pcm);
+      if (backlog.length > LT_BACKLOG_MAX_FRAMES) backlog.shift();
+    }
   } else {
     ring[ch].push({ pcm, ms: frameMs });
     let held = ring[ch].reduce((a, c) => a + c.ms, 0);
@@ -230,9 +350,10 @@ function handleStreamingPcm(pcm: Float32Array, ch: Channel, captureTs: number): 
 
 /** reap idle streaming sessions (nobody spoke for STREAM_IDLE_CLOSE_MS) */
 setInterval(() => {
-  if (!engine || !isStreamingEngine(engine) || shuttingDown) return;
+  if (!engine || shuttingDown) return;
   for (const ch of ['them', 'me'] as Channel[]) {
-    if (streams[ch] && vads[ch].state !== 'speech' && Date.now() - lastSpeechAt[ch] > STREAM_IDLE_CLOSE_MS) {
+    const idleMs = streamIsLt[ch] ? LT_IDLE_CLOSE_MS : STREAM_IDLE_CLOSE_MS;
+    if (streams[ch] && vads[ch].state !== 'speech' && Date.now() - lastSpeechAt[ch] > idleMs) {
       closeStream(ch);
     }
   }
@@ -344,24 +465,25 @@ listen((msg: WorkerInMessage) => {
               (msg.pcm as unknown as ArrayBufferView).buffer ?? (msg.pcm as unknown as ArrayBuffer),
             );
       const ch: Channel = msg.channel === 'me' ? 'me' : 'them';
-      if (isStreamingEngine(engine)) handleStreamingPcm(pcm, ch, msg.captureTs);
+      const se = streamEngineFor(ch);
+      if (se) handleStreamingPcm(pcm, ch, msg.captureTs, se);
       else handleVadEvents(vads[ch].push(pcm, msg.captureTs), ch);
       break;
     }
     case 'config':
       if (msg.language) language = msg.language;
+      if (msg.liveTranslate !== undefined) setLiveTranslate(msg.liveTranslate);
       break;
     case 'flush':
-      if (engine && isStreamingEngine(engine)) {
-        vads.them.flush();
-        vads.me.flush();
-        closeStream('them');
-        closeStream('me');
-        post({ type: 'status', state: 'listening', queuedSegments: 0 });
-      } else {
-        handleVadEvents(vads.them.flush(), 'them');
-        handleVadEvents(vads.me.flush(), 'me');
+      for (const ch of ['them', 'me'] as Channel[]) {
+        if (streams[ch] || streamEngineFor(ch)) {
+          vads[ch].flush();
+          closeStream(ch);
+        } else {
+          handleVadEvents(vads[ch].flush(), ch);
+        }
       }
+      if (engine && isStreamingEngine(engine)) post({ type: 'status', state: 'listening', queuedSegments: 0 });
       break;
     case 'shutdown':
       shuttingDown = true;

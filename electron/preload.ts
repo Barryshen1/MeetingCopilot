@@ -5,6 +5,7 @@ import {
   type AppInfo,
   type AsrEvent,
   type KbSlot,
+  type LiveTranslateTestResult,
   type LlmAskPayload,
   type LlmEvent,
   type OnboardingProgressPatch,
@@ -59,6 +60,8 @@ export interface McApi {
   /** fires after ■ 停止 wrote the meeting record automatically */
   onTranscriptExported(cb: (result: TranscriptExportResult) => void): () => void;
   translate(text: string): Promise<string>;
+  /** 实时翻译: check the saved Model Studio workspace + key can open a session */
+  liveTranslateTest(): Promise<LiveTranslateTestResult>;
   onAsrEvent(cb: (ev: AsrEvent) => void): () => void;
   /** pull the last ready/status events (call AFTER onAsrEvent subscription) */
   asrReplay(): Promise<{ ready: AsrEvent | null; status: AsrEvent | null }>;
@@ -144,6 +147,7 @@ const api: McApi = {
     return () => ipcRenderer.removeListener(IPC.transcriptExported, listener);
   },
   translate: (text) => ipcRenderer.invoke(IPC.translateText, text),
+  liveTranslateTest: () => ipcRenderer.invoke(IPC.liveTranslateTest),
   onAsrEvent: (cb) => {
     const listener = (_e: Electron.IpcRendererEvent, ev: AsrEvent) => cb(ev);
     ipcRenderer.on(IPC.asrEvent, listener);

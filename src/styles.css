@@ -13,13 +13,16 @@
   /* answer-body font size (right pane only; ui.fontScale) */
   --answer-font-size: 16px;
 
-  --app-bg: rgba(22, 26, 34, 0.8);
-  --app-border: rgba(255, 255, 255, 0.1);
-  --text: #e8eaf0;
-  --text-body: #e3e8f2;
-  --text-muted: #8b95ab;
-  --text-dim: #78829a;
-  --text-faint: #6d7689;
+  /* The overlay is see-through, so whatever is behind it (often a white
+   * browser) bleeds into the text. Reading surfaces are nearly opaque and the
+   * text is near-white so transcript and answers stay legible mid-meeting. */
+  --app-bg: rgba(17, 20, 27, 0.92);
+  --app-border: rgba(255, 255, 255, 0.12);
+  --text: #f1f3f8;
+  --text-body: #f5f7fb;
+  --text-muted: #a3adc0;
+  --text-dim: #8f99ad;
+  --text-faint: #7d879b;
   --brand-text: #aab3c5;
 
   --surface: rgba(255, 255, 255, 0.05);
@@ -53,17 +56,21 @@
   --popup-border: rgba(255, 255, 255, 0.16);
   --popup-shadow: rgba(0, 0, 0, 0.45);
 
-  --them-bg: rgba(42, 109, 244, 0.12);
-  --them-border: rgba(42, 109, 244, 0.22);
-  --them-border-hover: rgba(42, 109, 244, 0.55);
-  --me-bg: rgba(46, 160, 92, 0.13);
-  --me-border: rgba(46, 160, 92, 0.28);
-  --me-border-hover: rgba(46, 160, 92, 0.6);
-  --trans-text: #9fb0c8;
-  --trans-border: rgba(255, 255, 255, 0.15);
+  --them-bg: rgba(27, 42, 74, 0.94);
+  --them-border: rgba(84, 136, 255, 0.4);
+  --them-border-hover: rgba(84, 136, 255, 0.75);
+  --me-bg: rgba(22, 52, 37, 0.94);
+  --me-border: rgba(70, 190, 120, 0.42);
+  --me-border-hover: rgba(70, 190, 120, 0.75);
+  --trans-text: #cdd8ea;
+  --trans-border: rgba(255, 255, 255, 0.2);
 
-  --turn-bg: rgba(255, 255, 255, 0.04);
-  --turn-border: rgba(255, 255, 255, 0.08);
+  --turn-bg: rgba(23, 27, 36, 0.95);
+  --turn-border: rgba(255, 255, 255, 0.12);
+
+  /* lifts light text off anything that still shows through */
+  --reading-shadow: 0 1px 1px rgba(0, 0, 0, 0.45);
+  --reading-weight: 500;
 
   --tag-bg: rgba(255, 255, 255, 0.08);
   --tag-text: #9aa4b8;
@@ -128,17 +135,20 @@
   --popup-border: rgba(0, 0, 0, 0.16);
   --popup-shadow: rgba(0, 0, 0, 0.2);
 
-  --them-bg: rgba(42, 109, 244, 0.09);
-  --them-border: rgba(42, 109, 244, 0.3);
+  --them-bg: rgba(232, 240, 255, 0.92);
+  --them-border: rgba(42, 109, 244, 0.35);
   --them-border-hover: rgba(42, 109, 244, 0.6);
-  --me-bg: rgba(46, 160, 92, 0.1);
-  --me-border: rgba(46, 160, 92, 0.38);
+  --me-bg: rgba(231, 247, 237, 0.92);
+  --me-border: rgba(46, 160, 92, 0.42);
   --me-border-hover: rgba(46, 160, 92, 0.65);
   --trans-text: #43536e;
   --trans-border: rgba(0, 0, 0, 0.15);
 
-  --turn-bg: rgba(255, 255, 255, 0.66);
+  --turn-bg: rgba(255, 255, 255, 0.82);
   --turn-border: rgba(0, 0, 0, 0.1);
+
+  --reading-shadow: none;
+  --reading-weight: 500;
 
   --tag-bg: rgba(0, 0, 0, 0.06);
   --tag-text: #5a6474;
@@ -632,7 +642,9 @@ body {
 }
 
 .bubble-live {
-  opacity: 0.62;
+  /* the sentence being spoken (and, with 实时翻译, its translation) is read
+   * live, so it stays nearly as legible as a final bubble */
+  opacity: 0.88;
   border-style: dashed;
 }
 
@@ -641,14 +653,19 @@ body {
   padding-top: 5px;
   border-top: 1px dashed var(--trans-border);
   color: var(--trans-text);
-  font-size: 12px;
+  font-size: 13px;
   line-height: 1.5;
+  text-shadow: var(--reading-shadow);
   white-space: pre-wrap;
   user-select: text;
 }
 
 .bubble-text {
+  font-size: 14px;
   line-height: 1.55;
+  font-weight: var(--reading-weight);
+  color: var(--text-body);
+  text-shadow: var(--reading-shadow);
   white-space: pre-wrap;
   word-break: break-word;
   user-select: text;
@@ -756,6 +773,8 @@ body {
 .turn-body {
   font-size: var(--answer-font-size);
   line-height: 1.62;
+  font-weight: var(--reading-weight);
+  text-shadow: var(--reading-shadow);
   white-space: pre-wrap;
   word-break: break-word;
   user-select: text;

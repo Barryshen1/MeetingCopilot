@@ -23,6 +23,7 @@ import type {
 import { defaultHotkeysForPlatform } from '../shared/platform';
 import { providerIdForEndpoint } from '../shared/providerCatalog';
 import { codexConfigKey } from '../shared/codex';
+import { liveTranslateUrl, normalizeLiveTranslate } from '../shared/liveTranslate';
 
 export interface SecretCipher {
   available(): boolean;
@@ -80,6 +81,7 @@ export function defaultSettings(platform: string = process.platform): SettingsFi
       cloud: {},
       realtime: {},
       localRealtime: { model: 'fun-asr-nano' },
+      liveTranslate: normalizeLiveTranslate(undefined),
     },
     ui: {
       lang: 'zh',
@@ -128,6 +130,7 @@ function mergeWithDefaults(raw: Partial<SettingsFile>, defaults: SettingsFile): 
       cloud: { ...defaults.asr.cloud, ...raw.asr?.cloud },
       realtime: { ...defaults.asr.realtime, ...raw.asr?.realtime },
       localRealtime: { ...defaults.asr.localRealtime, ...raw.asr?.localRealtime },
+      liveTranslate: normalizeLiveTranslate({ ...defaults.asr.liveTranslate, ...raw.asr?.liveTranslate }),
     },
     ui: { ...defaults.ui, ...raw.ui },
     audio: { ...defaults.audio, ...raw.audio },
@@ -338,8 +341,14 @@ export class SettingsStore {
       }
     }
     if (patch.asr) {
-      const { cloud, realtime, localRealtime, ...rest } = patch.asr;
+      const { cloud, realtime, localRealtime, liveTranslate, ...rest } = patch.asr;
       Object.assign(this.data.asr, stripUndefined(rest));
+      if (liveTranslate) {
+        this.data.asr.liveTranslate = normalizeLiveTranslate({
+          ...this.data.asr.liveTranslate,
+          ...stripUndefined(liveTranslate),
+        });
+      }
       if (localRealtime) {
         this.data.asr.localRealtime = {
           ...this.data.asr.localRealtime,
@@ -481,6 +490,7 @@ export class SettingsStore {
           model: d.asr.localRealtime?.model,
           pythonPath: d.asr.localRealtime?.pythonPath,
         },
+        liveTranslate: this.liveTranslatePublic(),
       },
       // knowledge lives in a separate file; main fills the real char count
       knowledge: { chars: 0 },
@@ -500,6 +510,14 @@ export class SettingsStore {
       },
       export: { autoExport: d.export.autoExport !== false, folder: this.exportFolder() },
     };
+  }
+
+  /** 实时翻译 preference + whether the realtime slot can serve it */
+  private liveTranslatePublic(): PublicSettings['asr']['liveTranslate'] {
+    const lt = normalizeLiveTranslate(this.data.asr.liveTranslate);
+    const available =
+      !!liveTranslateUrl(this.data.asr.realtime?.baseUrl, lt.model) && !!this.data.asr.realtime?.apiKeyEnc;
+    return { ...lt, available };
   }
 
   /** Absolute folder for meeting records (the user's choice or the default). */

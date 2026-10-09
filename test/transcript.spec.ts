@@ -48,6 +48,21 @@ describe('appendSegment', () => {
     expect(list).toHaveLength(2);
   });
 
+  it('merges live-translated sentences with both halves joined, and only with each other', () => {
+    const a: TranscriptSegment = { ...seg(1, 'Good morning.', 0, 900), translation: '早上好。' };
+    const b: TranscriptSegment = { ...seg(2, 'Everyone.', 900, 1500), translation: '大家。' };
+    let list = appendSegment([a], b);
+    expect(list).toHaveLength(1);
+    expect(list[0]).toMatchObject({ text: 'Good morning. Everyone.', translation: '早上好。大家。', endTs: 1500 });
+
+    // a live-translated sentence never merges into an untranslated bubble (and vice versa)
+    list = appendSegment([seg(1, 'Plain line', 0, 900)], b);
+    expect(list).toHaveLength(2);
+    expect(list[1].translation).toBe('大家。');
+    list = appendSegment([a], seg(2, 'untranslated', 1000, 1500));
+    expect(list).toHaveLength(2);
+  });
+
   it('appends distinct segments', () => {
     let list: TranscriptSegment[] = [];
     list = appendSegment(list, seg(1, '第一句', 0, 1000));

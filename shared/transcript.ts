@@ -61,12 +61,17 @@ export function appendSegment(
   if (!text) return [...list];
 
   const last = list[list.length - 1];
-  // only merge fragments from the SAME speaker (dual-channel: 对方 vs 我);
-  // never into a bubble that is translated/translating (译文会与合并后原文错位)
+  // only merge fragments from the SAME speaker (dual-channel: 对方 vs 我).
+  // Translations must stay aligned with their text: untranslated merges into
+  // untranslated, and a live-translated sentence (实时翻译) merges into a
+  // translated bubble with both halves joined. Never into a bubble whose 译
+  // request is still running (its translation is of the old text only).
+  const lastTranslated = !!last?.translation;
+  const segTranslated = !!seg.translation?.trim();
   if (
     last &&
     (last.speaker ?? 'them') === (seg.speaker ?? 'them') &&
-    !last.translation &&
+    lastTranslated === segTranslated &&
     !last.translating
   ) {
     const gap = seg.startTs - last.endTs;
@@ -77,6 +82,7 @@ export function appendSegment(
       next.push({
         ...last,
         text: merged,
+        ...(segTranslated ? { translation: joinTexts(last.translation!, seg.translation!.trim()) } : {}),
         endTs: seg.endTs,
         lang: seg.lang ?? last.lang,
         e2eMs: seg.e2eMs,
