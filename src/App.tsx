@@ -280,11 +280,10 @@ export function App() {
         status: 'streaming',
       });
       maybeTitle(sid, question || (screenshotMode === 'coding-test' ? tRef.current.app.codingShotQuestion : tRef.current.app.shotQuestion));
+      // both modes carry the session material (Coding Test: problem files, starter code)
       const m = currentMaterial();
-      const background = screenshotMode === 'general'
-        ? [m.resume, m.jd].filter(Boolean).join('\n\n') || undefined
-        : undefined;
-      const attachments = screenshotMode === 'general' ? m.attachments : undefined;
+      const background = [m.resume, m.jd].filter(Boolean).join('\n\n') || undefined;
+      const attachments = m.attachments;
       window.mc.shotAsk({ requestId, question, background, attachments, imageDataUrl, screenshotMode });
     },
     [appendTurn, currentMaterial, maybeTitle],
@@ -649,12 +648,13 @@ export function App() {
       const saved = await window.mc.setSettings({ ui: { screenshotMode } });
       settingsRef.current = saved;
       setSettings(saved);
+      prewarm(false); // 回答模式 picks the answer persona, part of the stable prefix
     } catch (error) {
       settingsRef.current = previous;
       setSettings(previous);
-      console.error('[ui] screenshot mode save failed:', error);
+      console.error('[ui] answer mode save failed:', error);
     }
-  }, []);
+  }, [prewarm]);
 
   const updateAnswerLang = useCallback(async (answerLang: AnswerLang) => {
     const previous = settingsRef.current;
