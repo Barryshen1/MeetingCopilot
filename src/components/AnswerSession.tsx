@@ -1,8 +1,8 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import type { KbSlot, ScreenshotMode, StoredSession } from '../../shared/protocol';
 import { useT } from '../i18n';
 import { nextStick } from '../../shared/stickToBottom';
-import { splitAnswer, splitInlineCode } from '../../shared/answerFormat';
+import { codeIndent, splitAnswer, splitInlineCode } from '../../shared/answerFormat';
 import { InWindowSelect } from './InWindowSelect';
 
 export type TurnKind = 'segment' | 'continuous' | 'free' | 'translate' | 'vision' | 'oeai';
@@ -405,7 +405,17 @@ function AnswerText({ text, copyLabel }: { text: string; copyLabel: string }) {
                 </button>
               )}
             </div>
-            <pre><code>{part.code}</code></pre>
+            {/* one block per line: long lines wrap and continue past their own
+                indentation (--hang), so the per-line comments stay visible */}
+            <pre>
+              <code>
+                {part.code.split('\n').map((line, j) => (
+                  <span key={j} className="code-line" style={{ '--hang': `${codeIndent(line) + 2}ch` } as CSSProperties}>
+                    {line}
+                  </span>
+                ))}
+              </code>
+            </pre>
           </div>
         ) : (
           <div key={i} className="answer-prose">

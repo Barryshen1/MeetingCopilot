@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { splitAnswer, splitInlineCode } from '../shared/answerFormat';
+import { codeIndent, splitAnswer, splitInlineCode } from '../shared/answerFormat';
 
 describe('splitAnswer', () => {
   it('returns plain prose as one text part', () => {
@@ -61,5 +61,17 @@ describe('splitInlineCode', () => {
     ]);
     expect(splitInlineCode('no code here')).toEqual([{ code: false, text: 'no code here' }]);
     expect(splitInlineCode('a ` lone backtick')).toEqual([{ code: false, text: 'a ` lone backtick' }]);
+  });
+});
+
+describe('codeIndent', () => {
+  it('counts leading spaces and expands tabs to the next multiple of 4', () => {
+    expect(codeIndent('x = 1  # set x')).toBe(0);
+    expect(codeIndent('    return x  # done')).toBe(4);
+    expect(codeIndent('\tif x:')).toBe(4);
+    expect(codeIndent('  \tif x:')).toBe(4);
+    expect(codeIndent('\t\t  y')).toBe(10);
+    expect(codeIndent('')).toBe(0);
+    expect(codeIndent('      ')).toBe(6);
   });
 });

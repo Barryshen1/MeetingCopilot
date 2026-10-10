@@ -793,8 +793,9 @@ body {
   color: var(--error-text);
 }
 
-/* fenced code in answers (Coding Test): monospace, indentation kept, scrolls
-   sideways instead of wrapping so every comment stays on its own line */
+/* fenced code in answers (Coding Test): monospace, indentation kept. Long
+   lines wrap (every line carries a comment; a sideways scroll would hide them
+   in a narrow pane) and continue just past their own indentation. */
 .answer-prose + .answer-prose,
 .answer-prose + .code-block,
 .code-block + .answer-prose,
@@ -826,8 +827,7 @@ body {
 .code-block pre {
   margin: 0;
   padding: 8px 10px;
-  overflow-x: auto;
-  white-space: pre;
+  white-space: pre-wrap;
   tab-size: 4;
   font-family: ui-monospace, 'SF Mono', SFMono-Regular, Menlo, Consolas, monospace;
   font-size: max(12px, calc(var(--answer-font-size) - 1px));
@@ -835,6 +835,17 @@ body {
   font-weight: 400;
   color: var(--code-text);
   text-shadow: none;
+}
+
+.code-line {
+  display: block;
+  min-height: 1lh;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  /* first row starts at 0 (its own leading spaces indent it); wrapped rows
+     start at --hang = the line's indentation + 2 columns */
+  padding-left: var(--hang, 2ch);
+  text-indent: calc(-1 * var(--hang, 2ch));
 }
 
 .inline-code {

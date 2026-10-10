@@ -55,6 +55,22 @@ export function splitAnswer(text: string): AnswerPart[] {
   return parts;
 }
 
+/**
+ * Columns of leading indentation (a tab = 4). The answer pane wraps long code
+ * lines — every line carries a comment, and a narrow pane would otherwise
+ * hide the comments behind a sideways scroll — and continues a wrapped line
+ * just past its own indentation, so the code's structure stays readable.
+ */
+export function codeIndent(line: string): number {
+  let columns = 0;
+  for (const ch of line) {
+    if (ch === ' ') columns += 1;
+    else if (ch === '\t') columns += 4 - (columns % 4);
+    else break;
+  }
+  return columns;
+}
+
 /** `inline code` spans inside prose (never across lines) */
 export function splitInlineCode(text: string): { code: boolean; text: string }[] {
   const out: { code: boolean; text: string }[] = [];
