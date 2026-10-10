@@ -11,8 +11,14 @@ directories:
 # they must NOT be listed here. The negative patterns below are belt-and-braces
 # documentation of what must never reach a user's disk -- docs/ alone carries a
 # 6.8 MB demo video plus GIFs.
+# Only the three electron-vite outputs, never out/** as a whole: anything else
+# left under out/ (a log, a test profile) would be packed too, and a file that
+# changes while the archive is written shifts every later offset in app.asar --
+# the app then quits at launch ("Unable to find a valid app").
 files:
-  - out/**
+  - out/main/**
+  - out/preload/**
+  - out/renderer/**
   - package.json
   - '!src/**'
   - '!test/**'

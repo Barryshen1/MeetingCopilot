@@ -10,7 +10,9 @@
  *   1. copies release/mac-arm64/MeetingCopilot.app to the install folder
  *      (MC_INSTALL_DIR, default /Applications -- keep it on the internal SSD:
  *      launching this Electron app from a busy USB hard disk took 40-75 s),
- *   2. verifies the signature and registers that copy with LaunchServices,
+ *   2. checks that app.asar holds the code in out/ (a damaged archive is
+ *      never installed over a working app), verifies the signature and
+ *      registers that copy with LaunchServices,
  *   3. unregisters and removes the release/ build output (the ZIP from
  *      `npm run dist:mac` is kept), and
  *   4. lists any other registered copy so it can be removed by hand.
@@ -26,7 +28,7 @@
  */
 import { execFileSync } from 'node:child_process';
 import { existsSync, mkdirSync, readdirSync, renameSync, rmSync } from 'node:fs';
-import { dirname, join, resolve } from 'node:path';
+import { dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const BUNDLE_ID = 'io.github.barryshen1.meetingcopilot';
@@ -63,6 +65,46 @@ const hasLocalIdentity = () => {
     return false;
   }
 };
+
+function listFiles(dir, base = dir) {
+  return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
+    const path = join(dir, entry.name);
+    return entry.isDirectory() ? listFiles(path, base) : [relative(base, path)];
+  });
+}
+
+/**
+ * The packaged app must hold exactly the code that was built. A file that
+ * changed while electron-builder wrote app.asar shifts every later offset in
+ * the archive; the app then quits at launch ("Unable to find a valid app",
+ * exit 1, no window). Read the archive with the packaged binary itself (node
+ * mode reads app.asar the way the app does) and compare it with out/.
+ */
+function verifyAppArchive(app) {
+  const binary = join(app, 'Contents', 'MacOS', 'MeetingCopilot');
+  const archive = join(app, 'Contents', 'Resources', 'app.asar');
+  const built = ['main', 'preload', 'renderer'].flatMap((dir) => listFiles(join(root, 'out', dir)).map((file) => join('out', dir, file)));
+  const check = `
+    const fs = require('fs'), path = require('path'), crypto = require('crypto');
+    const [archive, root, files] = [process.argv[1], process.argv[2], JSON.parse(process.argv[3])];
+    const hash = (file) => crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex');
+    const pkg = JSON.parse(fs.readFileSync(path.join(archive, 'package.json'), 'utf8'));
+    fs.statSync(path.join(archive, pkg.main || 'index.js'));
+    const bad = files.filter((file) => { try { return hash(path.join(archive, file)) !== hash(path.join(root, file)); } catch { return true; } });
+    if (bad.length) { console.error(bad.slice(0, 5).join('\\n')); process.exit(2); }`;
+  try {
+    execFileSync(binary, ['-e', check, archive, root, JSON.stringify(built)], {
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'pipe'],
+      env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' },
+    });
+  } catch (error) {
+    const detail = String(error.stderr || error.message).trim().split('\n').slice(-5).join('\n  ');
+    console.error(`The build is damaged: app.asar does not match out/ (a file changed while it was packed).\n  ${detail}`);
+    console.error('Nothing was installed. Rebuild with "npm run dist:mac:dir" and retry.');
+    process.exit(1);
+  }
+}
 
 /** sign with the stable local identity: the helpers first, then the bundle */
 function signWithLocalIdentity(app) {
@@ -108,6 +150,7 @@ for (const path of [target, source]) {
   }
 }
 
+verifyAppArchive(source);
 rmSync(stagingDir, { recursive: true, force: true });
 mkdirSync(stagingDir, { recursive: true });
 rmSync(previous, { recursive: true, force: true });
