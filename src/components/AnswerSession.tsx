@@ -1,7 +1,8 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { KbSlot, ScreenshotMode, StoredSession } from '../../shared/protocol';
 import { useT } from '../i18n';
 import { nextStick } from '../../shared/stickToBottom';
+import { splitAnswer, splitInlineCode } from '../../shared/answerFormat';
 import { InWindowSelect } from './InWindowSelect';
 
 export type TurnKind = 'segment' | 'continuous' | 'free' | 'translate' | 'vision' | 'oeai';
@@ -283,7 +284,9 @@ export function AnswerSession({
                   <span className="answer-error">{turn.error}</span>
                 ) : (
                   <>
-                    {turn.text || (turn.kind === 'vision' ? t.answer.visionWaiting : t.answer.genWaiting)}
+                    {turn.text
+                      ? <AnswerText text={turn.text} copyLabel={t.answer.copyCode} />
+                      : (turn.kind === 'vision' ? t.answer.visionWaiting : t.answer.genWaiting)}
                     {turn.status === 'streaming' && <span className="cursor">▍</span>}
                   </>
                 )}
@@ -300,7 +303,8 @@ export function AnswerSession({
           {codexModel || t.answer.codexDefaultModel}{codexEffort ? ` · ${codexEffort}` : ''}{codexFast ? ' · Fast' : ''} ▾
         </button>
       </div>}
-      {visionReady && (
+      {/* 回答模式 steers every answer (typed, ⚡答, 持续答), not only screenshots */}
+      {(answersReady || visionReady) && (
         <div className="screenshot-mode-row">
           <span>{t.answer.screenshotModeLabel}</span>
           <div className="screenshot-mode-options" role="group" aria-label={t.answer.screenshotModeTitle}>
@@ -374,5 +378,43 @@ export function AnswerSession({
         )}
       </div>
     </section>
+  );
+}
+
+/**
+ * An answer with its fenced code shown as code: monospace, indentation kept,
+ * scrolls sideways instead of wrapping, and its own copy button. Prose keeps
+ * the pane's pre-wrap text; `inline code` gets a code font.
+ */
+function AnswerText({ text, copyLabel }: { text: string; copyLabel: string }) {
+  const parts = useMemo(() => splitAnswer(text), [text]);
+  return (
+    <>
+      {parts.map((part, i) =>
+        part.kind === 'code' ? (
+          <div key={i} className="code-block">
+            <div className="code-head">
+              <span>{part.lang || 'code'}</span>
+              {!part.open && (
+                <button
+                  type="button"
+                  className="btn btn-sm"
+                  onClick={() => void navigator.clipboard.writeText(part.code)}
+                >
+                  {copyLabel}
+                </button>
+              )}
+            </div>
+            <pre><code>{part.code}</code></pre>
+          </div>
+        ) : (
+          <div key={i} className="answer-prose">
+            {splitInlineCode(part.text).map((span, j) =>
+              span.code ? <code key={j} className="inline-code">{span.text}</code> : span.text,
+            )}
+          </div>
+        ),
+      )}
+    </>
   );
 }

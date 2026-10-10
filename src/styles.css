@@ -72,6 +72,10 @@
   --reading-shadow: 0 1px 1px rgba(0, 0, 0, 0.45);
   --reading-weight: 500;
 
+  --code-bg: rgba(9, 11, 16, 0.96);
+  --code-head-bg: rgba(255, 255, 255, 0.05);
+  --code-text: #e6edf6;
+
   --tag-bg: rgba(255, 255, 255, 0.08);
   --tag-text: #9aa4b8;
   --tag-ok-bg: rgba(46, 160, 92, 0.22);
@@ -149,6 +153,10 @@
 
   --reading-shadow: none;
   --reading-weight: 500;
+
+  --code-bg: rgba(244, 246, 250, 0.97);
+  --code-head-bg: rgba(0, 0, 0, 0.04);
+  --code-text: #1c2434;
 
   --tag-bg: rgba(0, 0, 0, 0.06);
   --tag-text: #5a6474;
@@ -783,6 +791,59 @@ body {
 
 .answer-error {
   color: var(--error-text);
+}
+
+/* fenced code in answers (Coding Test): monospace, indentation kept, scrolls
+   sideways instead of wrapping so every comment stays on its own line */
+.answer-prose + .answer-prose,
+.answer-prose + .code-block,
+.code-block + .answer-prose,
+.code-block + .code-block {
+  margin-top: 8px;
+}
+
+.code-block {
+  border: 1px solid var(--border-1);
+  border-radius: 8px;
+  background: var(--code-bg);
+  overflow: hidden;
+  user-select: text;
+}
+
+.code-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 3px 6px 3px 10px;
+  font-size: 11px;
+  color: var(--text-muted);
+  background: var(--code-head-bg);
+  border-bottom: 1px solid var(--border-1);
+  text-shadow: none;
+}
+
+.code-block pre {
+  margin: 0;
+  padding: 8px 10px;
+  overflow-x: auto;
+  white-space: pre;
+  tab-size: 4;
+  font-family: ui-monospace, 'SF Mono', SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: max(12px, calc(var(--answer-font-size) - 1px));
+  line-height: 1.5;
+  font-weight: 400;
+  color: var(--code-text);
+  text-shadow: none;
+}
+
+.inline-code {
+  font-family: ui-monospace, 'SF Mono', SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.92em;
+  padding: 0 4px;
+  border-radius: 4px;
+  background: var(--code-bg);
+  text-shadow: none;
 }
 
 .cursor {

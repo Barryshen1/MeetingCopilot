@@ -635,11 +635,15 @@ function bootstrap(): void {
     let lastPrefixActivity = 0; // last time the answer prefix hit the provider
     let keepWarmTimer: NodeJS.Timeout | null = null;
 
+    /** 回答模式 = Coding Test switches every answer (not only screenshots) */
+    const codingTestMode = (): boolean => settings.data.ui.screenshotMode === 'coding-test';
+
     /** same material fallback as llmAsk — prewarm MUST match real requests byte-for-byte */
     function stablePrefixFor(resume?: string, jd?: string, attachments?: SessionAttachment[], oeaiMode = false): string {
       const hasMaterial = !!(resume || jd || attachments?.length);
       const effResume = resume || (hasMaterial ? '' : knowledge.text);
-      return buildStablePrefix(effResume, jd ?? '', settings.data.llm.answerLang, attachments, oeaiMode ? 'oeai' : 'default');
+      const scenario = codingTestMode() ? 'coding' : oeaiMode ? 'oeai' : 'default';
+      return buildStablePrefix(effResume, jd ?? '', settings.data.llm.answerLang, attachments, scenario);
     }
 
     async function doPrewarm(prefix: string, reason: string): Promise<void> {
@@ -1256,6 +1260,7 @@ function bootstrap(): void {
         memo: isTranslate ? undefined : payload.memo,
         background: isTranslate ? undefined : payload.background || (hasMaterial ? undefined : knowledge.text),
         oeaiMode: isTranslate ? false : payload.oeaiMode,
+        codingTest: !isTranslate && codingTestMode(),
       });
 
       // "answer with multimodal": route through the vision provider (proxy-aware,
@@ -1269,7 +1274,8 @@ function bootstrap(): void {
         !!settings.getVisionApiKey();
 
       // a real answer request refreshes the provider-side prefix cache itself
-      if (!isTranslate && !useVision && payload.mode !== 'free') {
+      // (Coding Test free questions send the same coding prefix too)
+      if (!isTranslate && !useVision && (payload.mode !== 'free' || codingTestMode())) {
         lastPrefix = stablePrefixFor(payload.resume || payload.background, payload.jd, payload.attachments, payload.oeaiMode);
         lastPrefixActivity = Date.now();
       }
@@ -1474,10 +1480,8 @@ function bootstrap(): void {
         : captureForShot(ac.signal, payload.requestId, payload.question);
       imgP
         .then((dataUrl) => {
-          const attachments = screenshotMode === 'coding-test' ? undefined : payload.attachments;
-          const background = screenshotMode === 'coding-test'
-            ? undefined
-            : payload.background || (attachments?.length ? undefined : knowledge.text);
+          const attachments = payload.attachments;
+          const background = payload.background || (attachments?.length ? undefined : knowledge.text);
           const messages = buildVisionMessages(
             payload.question, dataUrl, background, screenshotMode, settings.data.llm.answerLang, attachments,
           );

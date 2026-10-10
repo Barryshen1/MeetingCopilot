@@ -362,18 +362,20 @@ describe('additional session reference files', () => {
     expect(JSON.stringify(translated)).not.toContain('project-notes.md');
   });
 
-  it('uses files for a general screenshot and excludes them from Coding Test screenshots', () => {
+  it('uses the session material for both screenshot modes', () => {
     const general = buildVisionMessages(
       '', 'data:image/png;base64,AAA', 'Legacy notes', 'general', 'auto', attachments,
     );
     expect(JSON.stringify(general)).toContain('project-notes.md');
     expect(JSON.stringify(general)).toContain('Legacy notes');
     expect((general[0].content as string).length).toBeLessThan(MAX_SCREENSHOT_CONTEXT_CHARS + 1000);
-    const coding = buildVisionMessages(
-      '', 'data:image/png;base64,AAA', 'Legacy notes', 'coding-test', 'auto', attachments,
-    );
-    expect(JSON.stringify(coding)).not.toContain('project-notes.md');
-    expect(JSON.stringify(coding)).not.toContain('Legacy notes');
+    for (const lang of ['auto', 'chinese'] as const) {
+      const coding = buildVisionMessages(
+        '', 'data:image/png;base64,AAA', 'Legacy notes', 'coding-test', lang, attachments,
+      );
+      expect(JSON.stringify(coding)).toContain('project-notes.md');
+      expect(JSON.stringify(coding)).toContain('Legacy notes');
+    }
   });
 });
 
@@ -601,18 +603,22 @@ describe('buildVisionMessages', () => {
     expect(content[1].text).toBe('解读这页内容的要点，并给出我应该怎么回应的建议。');
   });
 
-  it('asks for a complete Python 3 solution and complexity for a coding-test screenshot', () => {
+  it('asks for fully commented Python 3 code with a walkthrough for a coding-test screenshot', () => {
     const image = 'data:image/png;base64,AAA';
-    const background = 'PRIVATE_RESUME_MARKER';
+    const background = 'RESUME_MARKER';
     const msgs = buildVisionMessages('  ', image, background, 'coding-test');
     expect(msgs).toHaveLength(2);
     const system = msgs[0].content as string;
     const content = msgs[1].content as Array<{ type: string; image_url?: { url: string }; text?: string }>;
     expect(system).toMatch(/Python\s*3/i);
-    expect(system).toMatch(/时间复杂度|time complexity/i);
-    expect(system).toMatch(/空间复杂度|space complexity/i);
-    expect(system).not.toMatch(/会议|面试|PPT/i);
-    expect(JSON.stringify(msgs)).not.toContain(background);
+    expect(system).toMatch(/时间复杂度/);
+    expect(system).toMatch(/空间复杂度/);
+    expect(system).toContain('每一行都要有注释');
+    expect(system).toContain('```python');
+    expect(system).toContain('逐步讲解');
+    expect(system).toContain('dry run');
+    expect(system).not.toMatch(/会议助手|PPT/i);
+    expect(system).toContain(background); // the session material rides along as data
     expect(content[0]).toEqual({ type: 'image_url', image_url: { url: image } });
     expect(content[1].type).toBe('text');
     expect(content[1].text).toMatch(/编程|算法|coding|problem/i);
@@ -785,5 +791,72 @@ describe('chatStream (mock OpenAI-compatible server)', () => {
     setTimeout(() => ac.abort(), 100);
     await expect(p).rejects.toThrow();
     expect(deltas.join('').length).toBeLessThan('建议这样回答'.length);
+  });
+});
+
+describe('回答模式 = Coding Test (every answer, not only screenshots)', () => {
+  const material = {
+    resume: 'RESUME_MARKER',
+    jd: 'JD_MARKER',
+    attachments: [{ id: 'a1', name: 'problem.md', text: 'PROBLEM_FILE_MARKER', chars: 19 }],
+  };
+
+  it('answers a spoken interviewer problem with commented code instead of a teleprompter answer', () => {
+    const msgs = buildAnswerMessages({
+      mode: 'segment',
+      question: 'Given an array of integers, return indices of the two numbers that add up to a target.',
+      recentTranscript: ['Let us start with a coding question.'],
+      answerLang: 'chinese',
+      codingTest: true,
+      ...material,
+    });
+    const system = msgs[0].content as string;
+    expect(system).toContain('Coding Test 模式');
+    expect(system).toContain('每一行都要有注释');
+    expect(system).toContain('```python');
+    expect(system).not.toContain('实时面试提词器');
+    expect(system).not.toContain('150-350');
+    for (const marker of ['RESUME_MARKER', 'JD_MARKER', 'PROBLEM_FILE_MARKER']) expect(system).toContain(marker);
+    const last = msgs[msgs.length - 1].content as string;
+    expect(last).toContain('two numbers that add up');
+    expect(last).toContain('逐行注释');
+  });
+
+  it('treats a typed question as a coding question too, with the same cacheable prefix', () => {
+    const free = buildAnswerMessages({
+      mode: 'free',
+      freeQuestion: '写一个 LRU cache',
+      recentTranscript: ['interviewer: any questions?'],
+      answerLang: 'auto',
+      codingTest: true,
+      ...material,
+    });
+    expect(free[0].content).toBe(buildStablePrefix('RESUME_MARKER', 'JD_MARKER', 'auto', material.attachments, 'coding'));
+    const last = free[free.length - 1].content as string;
+    expect(last).toContain('写一个 LRU cache');
+    expect(last).toContain('interviewer: any questions?');
+  });
+
+  it('covers 持续答 and wins over OEAI; translation is untouched', () => {
+    const continuous = buildAnswerMessages({
+      mode: 'continuous', recentTranscript: ['Now implement binary search.'], codingTest: true, oeaiMode: true,
+    });
+    expect(continuous[0].content as string).toContain('Coding Test 模式');
+    expect(JSON.stringify(continuous)).not.toContain('OEAI');
+    const translated = buildAnswerMessages({ mode: 'translate', question: 'Hello', recentTranscript: [], codingTest: true });
+    expect(JSON.stringify(translated)).not.toContain('Coding Test');
+  });
+
+  it('says to answer briefly, without code, when the line is not a programming problem', () => {
+    const prefix = buildStablePrefix('', '', 'chinese', undefined, 'coding');
+    expect(prefix).toContain('不是编程问题');
+    expect(prefix).toContain('不要硬写代码');
+    expect(prefix).toBe(buildStablePrefix('', '', 'chinese', undefined, 'coding')); // byte-stable
+  });
+
+  it('keeps the ordinary teleprompter when Coding Test is off', () => {
+    const msgs = buildAnswerMessages({ mode: 'segment', question: 'Tell me about yourself', recentTranscript: [] });
+    expect(msgs[0].content as string).toContain('实时面试提词器');
+    expect(msgs[0].content as string).not.toContain('Coding Test');
   });
 });
