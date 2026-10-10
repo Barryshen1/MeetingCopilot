@@ -55,7 +55,8 @@ const previous = `${target}.replaced`;
 // lsregister -dump prints the whole LaunchServices database (tens of MB).
 const run = (cmd, args) => execFileSync(cmd, args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], maxBuffer: 512 * 1024 * 1024 });
 const running = (path) => {
-  try { return run('pgrep', ['-f', `${path}/Contents/MacOS/MeetingCopilot$`]).trim() !== ''; } catch { return false; }
+  // also an instance started with arguments (a test copy with --remote-debugging-port)
+  try { return run('pgrep', ['-f', `${path}/Contents/MacOS/MeetingCopilot( |$)`]).trim() !== ''; } catch { return false; }
 };
 
 const hasLocalIdentity = () => {
