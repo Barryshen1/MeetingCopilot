@@ -16,13 +16,21 @@
  *   4. lists any other registered copy so it can be removed by hand.
  * The previous install is replaced, not kept as a second .app; back it up as a
  * ZIP (`ditto -c -k --keepParent`) beforehand if you need a rollback.
+ *
+ * Signing: when the login keychain holds the local identity created by
+ * `npm run setup:mac-signing`, the installed copy is re-signed with it, so
+ * macOS sees the SAME app after every rebuild and keeps its Screen Recording,
+ * System Audio Recording and keychain grants. Without it the ad-hoc build
+ * signature changes each time and those grants are lost.
+ *   node tools/install-mac.mjs --resign-installed   re-sign /Applications only
  */
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdirSync, renameSync, rmSync } from 'node:fs';
+import { existsSync, mkdirSync, readdirSync, renameSync, rmSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const BUNDLE_ID = 'io.github.barryshen1.meetingcopilot';
+const SIGN_IDENTITY = process.env.MC_SIGN_IDENTITY || 'MeetingCopilot Local Signing';
 const LSREGISTER = '/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister';
 
 if (process.platform !== 'darwin') {
@@ -48,6 +56,47 @@ const running = (path) => {
   try { return run('pgrep', ['-f', `${path}/Contents/MacOS/MeetingCopilot$`]).trim() !== ''; } catch { return false; }
 };
 
+const hasLocalIdentity = () => {
+  try {
+    return run('security', ['find-identity', '-p', 'codesigning']).includes(`"${SIGN_IDENTITY}"`);
+  } catch {
+    return false;
+  }
+};
+
+/** sign with the stable local identity: the helpers first, then the bundle */
+function signWithLocalIdentity(app) {
+  const entitlements = join(root, 'build', 'entitlements.mac.plist');
+  const common = ['--force', '--options', 'runtime', '--timestamp=none', '--entitlements', entitlements, '--sign', SIGN_IDENTITY];
+  const helpers = join(app, 'Contents', 'Resources', 'resources', 'bin');
+  if (existsSync(helpers)) {
+    for (const name of readdirSync(helpers)) run('codesign', [...common, join(helpers, name)]);
+  }
+  run('codesign', [...common, '--deep', app]);
+  run('codesign', ['--verify', '--deep', '--strict', app]);
+  const requirement = run('codesign', ['-d', '-r-', app]).trim();
+  if (!requirement.includes('certificate leaf')) throw new Error(`unexpected designated requirement: ${requirement}`);
+}
+
+if (process.argv.includes('--resign-installed')) {
+  if (!existsSync(target)) {
+    console.error(`Nothing installed at ${target}.`);
+    process.exit(1);
+  }
+  if (running(target)) {
+    console.error(`MeetingCopilot is running from ${target}. Quit it (tray -> 退出 / Quit), then retry.`);
+    process.exit(1);
+  }
+  if (!hasLocalIdentity()) {
+    console.error(`No "${SIGN_IDENTITY}" identity in the keychain. Run "npm run setup:mac-signing" first.`);
+    process.exit(1);
+  }
+  signWithLocalIdentity(target);
+  run(LSREGISTER, ['-f', target]);
+  console.log(`Re-signed ${target} with "${SIGN_IDENTITY}".`);
+  process.exit(0);
+}
+
 if (!existsSync(source)) {
   console.error(`No build at ${source}. Run "npm run dist:mac:dir" first.`);
   process.exit(1);
@@ -65,6 +114,15 @@ rmSync(previous, { recursive: true, force: true });
 console.log(`Copying to ${target} ...`);
 run('ditto', [source, staging]);
 run('codesign', ['--verify', '--deep', '--strict', staging]);
+if (hasLocalIdentity()) {
+  signWithLocalIdentity(staging);
+  console.log(`Signed with "${SIGN_IDENTITY}": macOS permissions carry over from the previous install.`);
+} else {
+  console.warn(
+    'Ad-hoc signed: macOS treats every rebuild as a new app, so Screen Recording / System Audio ' +
+      'Recording must be granted again. Run "npm run setup:mac-signing" once to keep them across builds.',
+  );
+}
 
 if (existsSync(target)) renameSync(target, previous);
 try {

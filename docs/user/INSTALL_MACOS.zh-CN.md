@@ -27,6 +27,8 @@ open -a /Applications/MeetingCopilot.app
 
 `npm run install:mac` 会先确认应用已退出，再把 `release/mac-arm64/MeetingCopilot.app` 复制到 `/Applications`（可用 `MC_INSTALL_DIR` 改为其他文件夹），校验签名、向系统登记这一份，然后删除 `release/` 中的 `.app` 构建副本。运行 `npm run dist:mac` 还会在 `release/` 生成 `MeetingCopilot-<version>-mac-arm64-adhoc.zip`，安装脚本不会删除 ZIP。
 
+**更新后保留系统权限（推荐，一次性）。** 临时签名的每次构建在 macOS 看来都是一个新应用：屏幕录制会被静默拒绝（📷 没反应），系统录音要重新允许，钥匙串也会再要一次密码。先运行一次 `npm run setup:mac-signing`，它在登录钥匙串里创建一个只在本机使用的自签名代码签名证书「MeetingCopilot Local Signing」；之后 `npm run install:mac` 会用它给安装的应用签名，权限只需授予一次，以后的版本都会保留。已经装好的应用可用 `node tools/install-mac.mjs --resign-installed` 重新签名。不想要时，在「钥匙串访问 → 登录 → 我的证书」里删除该证书即可，安装脚本会退回临时签名。
+
 **安装在内置磁盘上。** 这是约 650 MB 的 Electron 应用；放在 USB 机械移动硬盘上时，硬盘一忙，从点击到出现窗口实测要 40–75 秒，看起来像“打不开”；放在内置 SSD 上不到 1 秒。应用数据目录可以留在外置盘。
 
 **只保留一份 `.app`。** 每个 `MeetingCopilot.app`（包括备份、解压出的副本和 `release/` 构建）都以同一个应用标识登记，会在 Spotlight / 启动台里重复出现，系统“打开 MeetingCopilot”时也可能启动旧副本。需要回滚备份时，打包成 ZIP：`ditto -c -k --keepParent /Applications/MeetingCopilot.app ~/MeetingCopilot-backup.zip`。
