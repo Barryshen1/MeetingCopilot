@@ -20,6 +20,7 @@ import {
   type TranscriptSegment,
 } from '../shared/transcript';
 import { isLikelyOeaiPrompt, isLikelyQuestion } from '../shared/textHeuristics';
+import { planContinuousAnswer, themStillTalking, type ContinuousTarget } from '../shared/continuousAnswer';
 import { themSourceFor, type ThemSource } from '../shared/platform';
 import { CODEX_FAST_SERVICE_TIER, codexServiceTier } from '../shared/codex';
 import { deriveServiceHealth } from '../shared/healthState';
@@ -94,6 +95,12 @@ export function App() {
   const [mics, setMics] = useState<{ deviceId: string; label: string }[]>([]);
   const [micActive, setMicActive] = useState(false);
   const [partials, setPartials] = useState<{ them?: LivePartial; me?: LivePartial }>({});
+  /** 持续答: the card answering the latest 对方 bubble (one card per bubble) */
+  const continuousTarget = useRef<ContinuousTarget | null>(null);
+  /** when the last 对方 partial arrived (0 after a final): 对方 still talking? */
+  const themPartialAt = useRef(0);
+  /** re-asked 持续答 cards keep their previous answer until the new one streams */
+  const replaceOnFirstDelta = useRef(new Set<string>());
   const [sessions, setSessions] = useState<StoredSession[]>([]);
   const [currentId, setCurrentId] = useState<string>('');
   const [kbNotice, setKbNotice] = useState<string | null>(null);
@@ -226,16 +233,48 @@ export function App() {
       // line — so the turn label (and thus session history) carries the real
       // question instead of a constant '对方最新发言' (v1 history-label bug)
       let question = text;
+      let themSegId: number | undefined;
       if (mode === 'continuous') {
         for (let i = segs.length - 1; i >= 0; i--) {
           if ((segs[i].speaker ?? 'them') === 'them') {
             question = segs[i].text;
+            themSegId = segs[i].id;
             break;
           }
         }
       }
       const label = question ?? (mode === 'continuous' ? tRef.current.app.latestRemark : '');
-      appendTurn(sid, { id: requestId, kind: mode, label, text: '', status: 'streaming' });
+      // 持续答: one card per 对方 bubble. A bubble that grew (another sentence
+      // merged in) is re-asked in its EXISTING card with the full text, and the
+      // earlier request is cancelled — never a second card for the same remark.
+      const plan =
+        mode === 'continuous' && themSegId !== undefined && question
+          ? planContinuousAnswer(
+              continuousTarget.current,
+              { sessionId: sid, segmentId: themSegId, question },
+              (turnId) => !!sessionsRef.current.find((x) => x.id === sid)?.turns.some((t) => t.id === turnId),
+            )
+          : null;
+      if (plan?.action === 'skip') return;
+      if (plan?.action === 'restart') {
+        window.mc.llmCancel(plan.turnId);
+        replaceOnFirstDelta.current.delete(plan.turnId);
+        replaceOnFirstDelta.current.add(requestId);
+        // the card takes the new request id (late events of the cancelled
+        // request no longer match it) and keeps its answer until the new one
+        // starts streaming
+        patchSession(sid, (s) => ({
+          ...s,
+          turns: s.turns.map((t) =>
+            t.id === plan.turnId ? { ...t, id: requestId, label, status: 'streaming', error: undefined } : t,
+          ),
+        }));
+      } else {
+        appendTurn(sid, { id: requestId, kind: mode, label, text: '', status: 'streaming' });
+      }
+      if (plan && themSegId !== undefined && question) {
+        continuousTarget.current = { sessionId: sid, segmentId: themSegId, turnId: requestId, question };
+      }
       if (mode === 'segment' || mode === 'free') maybeTitle(sid, text);
       const material = mode === 'translate' ? {} : currentMaterial();
       const payload: LlmAskPayload = {
@@ -251,7 +290,7 @@ export function App() {
       };
       window.mc.llmAsk(payload);
     },
-    [appendTurn, buildHistory, currentMaterial, maybeTitle],
+    [appendTurn, buildHistory, currentMaterial, maybeTitle, patchSession],
   );
 
   const toggleOeai = useCallback(() => {
@@ -341,8 +380,10 @@ export function App() {
       } else if (ev.kind === 'error') {
         setAsr((s) => ({ ...s, phase: ev.fatal ? 'error' : s.phase, lastError: ev.message }));
       } else if (ev.kind === 'partial') {
+        if (ev.speaker === 'them') themPartialAt.current = ev.text.trim() ? Date.now() : 0;
         setPartials((p) => ({ ...p, [ev.speaker]: { text: ev.text, translation: ev.translation } }));
       } else if (ev.kind === 'segment') {
+        if (ev.speaker === 'them') themPartialAt.current = 0;
         setPartials((p) => ({ ...p, [ev.speaker]: undefined })); // final replaces the live partial
         const e2eMs = Date.now() - ev.timings.speechEndTs;
         const inferMs = ev.timings.inferEndTs - ev.timings.inferStartTs;
@@ -390,12 +431,15 @@ export function App() {
     });
 
     const offLlm = window.mc.onLlmEvent((ev) => {
+      // a re-asked 持续答 card: its first delta replaces the previous answer
+      const replace = ev.kind === 'delta' && replaceOnFirstDelta.current.delete(ev.requestId);
+      if (ev.kind === 'done' || ev.kind === 'error') replaceOnFirstDelta.current.delete(ev.requestId);
       setSessions((list) =>
         list.map((s) => ({
           ...s,
           turns: s.turns.map((t) => {
             if (t.id !== ev.requestId) return t;
-            if (ev.kind === 'delta') return { ...t, text: t.text + ev.text };
+            if (ev.kind === 'delta') return { ...t, text: replace ? ev.text : t.text + ev.text };
             if (ev.kind === 'done') return { ...t, text: ev.text || t.text, status: 'done' };
             if (ev.kind === 'label') return { ...t, label: ev.text };
             return { ...t, status: 'error', error: ev.message };
@@ -500,7 +544,15 @@ export function App() {
     if (!continuous || !lastSeg) return;
     if ((lastSeg.speaker ?? 'them') !== 'them') return; // ignore my own voice
     if (!(oeaiRef.current ? isLikelyOeaiPrompt(lastSeg.text) : isLikelyQuestion(lastSeg.text))) return;
-    const timer = setTimeout(() => askLlm('continuous'), 1100);
+    // 对方 already started the next sentence: hold off — it will merge into
+    // this bubble and its final re-runs this effect. Asking now would only be
+    // cancelled and re-asked a few seconds later.
+    let timer: ReturnType<typeof setTimeout>;
+    const fire = () => {
+      if (themStillTalking(themPartialAt.current, Date.now())) timer = setTimeout(fire, 300);
+      else askLlm('continuous');
+    };
+    timer = setTimeout(fire, 1100);
     return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [continuous, lastSeg?.id, lastSeg?.endTs]);
