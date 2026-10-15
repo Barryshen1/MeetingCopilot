@@ -45,7 +45,7 @@ const zh = {
     themDeviceTitle: '对方音频输入',
     themDeviceDefault: '默认输入',
     continuous: '持续答',
-    continuousTitle: '持续模式：对方提问时自动追加一条回答建议（只在像问题时触发）',
+    continuousTitle: '持续模式：对方说完一段像问题的话，自动给出回答建议；对方接着说，同一张卡片按完整内容更新，不会重复追加',
     oeai: 'OEAI',
     oeaiTitle: 'OEAI 口试答题模式：按考官的问题生成适合直接说出的回答建议；「持续答」可同时开启。回答语言沿用「答:自动/中/EN」设置。',
     vision: '多模态',
@@ -571,7 +571,7 @@ const en: Dict = {
     themDeviceDefault: 'Default input',
     continuous: 'Auto',
     continuousTitle:
-      'Continuous mode: auto-append an answer suggestion whenever the other party asks something question-like',
+      'Continuous mode: when the other party finishes a question-like remark, suggest an answer; if they keep talking, the same card updates with the whole remark instead of adding another',
     oeai: 'OEAI',
     oeaiTitle:
       'OEAI oral-interview mode: suggest spoken answers to examiner questions. Auto can run at the same time; answer language follows A:Auto/ZH/EN.',
