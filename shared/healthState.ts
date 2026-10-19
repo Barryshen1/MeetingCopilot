@@ -15,7 +15,7 @@
  *  - a cloud slot that has never been tested is USABLE, not broken. It reads
  *    'untested' so the panel can say so, but it never shows as a failure.
  */
-import type { ProviderSlot, ProviderVerification, PublicSettings } from './protocol';
+import { isCliBackend, type ProviderSlot, type ProviderVerification, type PublicSettings } from './protocol';
 
 export type ServiceKey = 'asr' | 'llm' | 'audio' | 'vision';
 
@@ -102,7 +102,8 @@ function deriveLlm(settings: PublicSettings): ServiceHealth {
     slot: 'llm',
     verification: settings.llm.verification,
   };
-  if (settings.llm.backend !== 'codex-cli' &&
+  // the CLI backends (Claude Code, Codex) bring their own sign-in: no key needed
+  if (!isCliBackend(settings.llm.backend) &&
       (!settings.llm.apiKeySet || !settings.llm.baseUrl || !settings.llm.model)) {
     return { ...base, state: 'unconfigured' };
   }
@@ -116,7 +117,7 @@ function deriveAudio(capturing: boolean): ServiceHealth {
 }
 
 function deriveVision(settings: PublicSettings): ServiceHealth {
-  if (settings.llm.backend === 'codex-cli') {
+  if (isCliBackend(settings.llm.backend)) {
     // A successful text test does not establish the selected model's image support.
     return {
       key: 'vision',

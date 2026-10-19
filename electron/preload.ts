@@ -1,5 +1,6 @@
 import { contextBridge, ipcRenderer } from 'electron';
 import type { CodexSettings, CodexStatus, CodexTestResult } from '../shared/codex';
+import type { ClaudeCodeSettings, ClaudeCodeStatus, ClaudeCodeTestResult } from '../shared/claudeCode';
 import {
   IPC,
   type AppInfo,
@@ -29,6 +30,10 @@ export interface McApi {
   setSettings(patch: SettingsPatch): Promise<PublicSettings>;
   codexStatus(config?: CodexSettings): Promise<CodexStatus>;
   codexTest(config?: CodexSettings): Promise<CodexTestResult>;
+  /** Claude Code CLI install + sign-in check; never generates text */
+  claudeCodeStatus(config?: ClaudeCodeSettings): Promise<ClaudeCodeStatus>;
+  /** one small real generation through Claude Code CLI */
+  claudeCodeTest(config?: ClaudeCodeSettings): Promise<ClaudeCodeTestResult>;
   /** first-run wizard state (the main window only reads it / dismisses the
    * upgrade notice — completing onboarding belongs to the setup window) */
   getOnboarding(): Promise<OnboardingState>;
@@ -120,6 +125,8 @@ const api: McApi = {
   setSettings: (patch) => ipcRenderer.invoke(IPC.settingsSet, patch),
   codexStatus: (config) => ipcRenderer.invoke(IPC.codexStatus, config),
   codexTest: (config) => ipcRenderer.invoke(IPC.codexTest, config),
+  claudeCodeStatus: (config) => ipcRenderer.invoke(IPC.claudeCodeStatus, config),
+  claudeCodeTest: (config) => ipcRenderer.invoke(IPC.claudeCodeTest, config),
   getOnboarding: () => ipcRenderer.invoke(IPC.onboardingGet),
   saveOnboardingProgress: (patch) => ipcRenderer.invoke(IPC.onboardingSaveProgress, patch),
   rerunOnboarding: () => ipcRenderer.invoke(IPC.onboardingRerun),

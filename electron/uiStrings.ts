@@ -32,6 +32,14 @@ const zh = {
   sidecarFail: (msg: string) => `本地 ASR 引擎启动失败：${msg}`,
   /** wraps the ASR worker's own (English, log-friendly) engine diagnostics */
   asrEngineFail: (msg: string) => `语音识别引擎异常：${msg}`,
+  /** Claude Code CLI failures the user can fix themselves (electron/llm/claudeCode.ts) */
+  claudeCode: {
+    notFound: '未找到 Claude Code CLI。请先安装 Claude Code 并在终端运行 claude auth login，或在设置中填写 claude 可执行文件的完整路径。',
+    selectedNotFound: '所选的 Claude Code 可执行文件不存在或不可执行。请填写 claude 可执行文件本身的路径，而不是 shell 命令。',
+    signedOut: 'Claude Code 未登录或登录已过期。请在终端运行 claude auth login 完成登录，然后重试。',
+    statusUnreadable: '无法读取 Claude Code 的登录状态。请更新 Claude Code 后重新检查。',
+    timedOut: 'Claude Code 三分钟内没有完成回答。请换用更快的模型或更低的推理强度后重试。',
+  },
   setupQuitTitle: '尚未完成配置',
   setupQuitMessage: '配置尚未完成，确定退出吗？可稍后从设置中重新打开向导。',
   setupQuitConfirm: '退出',
@@ -81,6 +89,13 @@ const en: MainDict = {
   noVision: 'Vision model not configured: set the Vision Base URL / model / key in Settings (e.g. MiMo / Gemini)',
   sidecarFail: (msg: string) => `Local ASR engine failed to start: ${msg}`,
   asrEngineFail: (msg: string) => `Speech recognition engine error: ${msg}`,
+  claudeCode: {
+    notFound: 'Claude Code CLI was not found. Install Claude Code and run claude auth login in Terminal, or enter the full path of the claude executable in Settings.',
+    selectedNotFound: 'The selected Claude Code executable was not found or is not executable. Select the claude binary itself, not a shell command.',
+    signedOut: 'Claude Code is not signed in, or its sign-in expired. Run claude auth login in Terminal, then try again.',
+    statusUnreadable: 'Could not read the Claude Code sign-in status. Update Claude Code, then check again.',
+    timedOut: 'Claude Code did not finish within three minutes. Try a faster model or a lower effort.',
+  },
   setupQuitTitle: 'Setup is not finished',
   setupQuitMessage:
     'Setup is not finished. Quit anyway? You can reopen the wizard later from Settings.',

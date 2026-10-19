@@ -9,20 +9,24 @@
  */
 import { readFileSync, writeFileSync, renameSync, mkdirSync, existsSync } from 'fs';
 import { dirname } from 'path';
-import type {
-  OnboardingCompletePayload,
-  OnboardingProgressPatch,
-  OnboardingState,
-  ProviderSlot,
-  ProviderVerification,
-  PublicSettings,
-  SettingsFile,
-  SettingsPatch,
-  UiLang,
+import {
+  DEFAULT_LLM_BACKEND,
+  isCliBackend,
+  type LlmBackend,
+  type OnboardingCompletePayload,
+  type OnboardingProgressPatch,
+  type OnboardingState,
+  type ProviderSlot,
+  type ProviderVerification,
+  type PublicSettings,
+  type SettingsFile,
+  type SettingsPatch,
+  type UiLang,
 } from '../shared/protocol';
 import { defaultHotkeysForPlatform } from '../shared/platform';
 import { providerIdForEndpoint } from '../shared/providerCatalog';
 import { codexConfigKey } from '../shared/codex';
+import { CLAUDE_CODE_DEFAULT_EFFORT, CLAUDE_CODE_DEFAULT_MODEL, claudeCodeConfigKey } from '../shared/claudeCode';
 import { liveTranslateUrl, normalizeLiveTranslate } from '../shared/liveTranslate';
 
 export interface SecretCipher {
@@ -62,7 +66,11 @@ export function defaultSettings(platform: string = process.platform): SettingsFi
       completed: process.env.MC_DEV_DEFAULT_LOCAL_ASR === '1',
     },
     llm: {
-      backend: 'openai-compatible',
+      // Claude Code CLI answers with the user's existing Claude sign-in, so a
+      // new profile needs no API key for AI answers. The API endpoint below
+      // stays the default for anyone who switches to an API provider.
+      backend: DEFAULT_LLM_BACKEND,
+      claudeCode: { model: CLAUDE_CODE_DEFAULT_MODEL, effort: CLAUDE_CODE_DEFAULT_EFFORT },
       codex: { model: 'gpt-6-sol', reasoningEffort: 'low' },
       baseUrl: 'https://api.deepseek.com/v1',
       // 'deepseek-chat' = v4-flash in NON-thinking mode (first token ~0.4 s).
@@ -113,6 +121,47 @@ export function apiKeyHint(plain: string): string | undefined {
 }
 
 /**
+ * The answer backend of a profile saved before Claude Code support existed
+ * (no `llm.claudeCode` section — every such file, v1 included).
+ *
+ * Those builds wrote their default `backend: 'openai-compatible'` into every
+ * save, so the stored value alone cannot tell a choice from a default. Only
+ * the API backend with a saved LLM or vision API key counts as an explicit
+ * choice and is kept: the user configured a provider (wizard or Settings), and
+ * screenshots may depend on it. Everything else moves to the Claude Code
+ * default: Codex CLI profiles (Claude Code replaces Codex as this fork's CLI
+ * default; the saved Codex settings stay, so switching back is one click) and
+ * the API backend without a key, whose answers could never run. The first
+ * save writes `llm.claudeCode`, so this runs once per profile and a later
+ * explicit choice (Codex, or even the API backend without a key) always sticks.
+ */
+export function preClaudeCodeBackend(raw: Partial<SettingsFile>): LlmBackend {
+  // v1 files had no backend field: an absent value is the API backend
+  if (!isCliBackend(raw.llm?.backend) && (raw.llm?.apiKeyEnc || raw.vision?.apiKeyEnc)) return 'openai-compatible';
+  return DEFAULT_LLM_BACKEND;
+}
+
+function mergeLlm(raw: Partial<SettingsFile>, defaults: SettingsFile): SettingsFile['llm'] {
+  const llm: SettingsFile['llm'] = {
+    ...defaults.llm,
+    ...raw.llm,
+    // A saved profile predates any new-profile Codex preference unless it
+    // explicitly carries that preference. Preserve its CLI-default behavior.
+    codex: { ...raw.llm?.codex },
+    // A saved Claude Code section is the user's; an empty model or effort is
+    // the CLI default, so never fill it back in. Older profiles never chose
+    // one and get the Claude Code defaults.
+    claudeCode: raw.llm?.claudeCode ? { ...raw.llm.claudeCode } : { ...defaults.llm.claudeCode },
+  };
+  if (!raw.llm?.claudeCode) {
+    llm.backend = preClaudeCodeBackend(raw);
+    // a stored verdict belongs to the backend the profile actually used
+    if (llm.backend !== (raw.llm?.backend ?? 'openai-compatible')) llm.verification = undefined;
+  }
+  return llm;
+}
+
+/**
  * Per-section spread merge against the defaults. Unknown keys in the stored
  * file survive (forward compatibility); missing ones get the default.
  */
@@ -120,9 +169,7 @@ function mergeWithDefaults(raw: Partial<SettingsFile>, defaults: SettingsFile): 
   return {
     version: 2,
     onboarding: { ...defaults.onboarding, ...raw.onboarding, schemaVersion: 1 },
-    // A saved profile predates any new-profile Codex preference unless it
-    // explicitly carries that preference. Preserve its CLI-default behavior.
-    llm: { ...defaults.llm, ...raw.llm, codex: { ...raw.llm?.codex } },
+    llm: mergeLlm(raw, defaults),
     vision: { ...defaults.vision, ...raw.vision },
     asr: {
       ...defaults.asr,
@@ -145,7 +192,9 @@ function mergeWithDefaults(raw: Partial<SettingsFile>, defaults: SettingsFile): 
  * Guarantees:
  *  - `apiKeyEnc` ciphertexts are carried over byte-for-byte (we cannot decrypt
  *    here, and re-encrypting would need safeStorage);
- *  - baseUrl / model / proxy / backend / ui / audio are untouched;
+ *  - baseUrl / model / proxy / ASR backend / ui / audio are untouched; the
+ *    answer backend follows {@link preClaudeCodeBackend} (a saved key keeps
+ *    the API backend);
  *  - `providerId` is inferred from the catalog by exact baseUrl+model match,
  *    falling back to 'custom';
  *  - a settings file EXISTS, so this user already configured the app by hand:
@@ -318,19 +367,22 @@ export class SettingsStore {
     if (patch.llm) {
       const connectionKey = () => this.data.llm.backend === 'codex-cli'
         ? `codex:${codexConfigKey(this.data.llm.codex)}`
-        : JSON.stringify(['api', this.data.llm.baseUrl.trim().replace(/\/+$/, ''), this.data.llm.model.trim()]);
+        : this.data.llm.backend === 'claude-code-cli'
+          ? `claude-code:${claudeCodeConfigKey(this.data.llm.claudeCode)}`
+          : JSON.stringify(['api', this.data.llm.baseUrl.trim().replace(/\/+$/, ''), this.data.llm.model.trim()]);
       const before = connectionKey();
-      const { apiKey, codex, ...rest } = patch.llm;
+      const { apiKey, codex, claudeCode, ...rest } = patch.llm;
       Object.assign(this.data.llm, stripUndefined(rest));
       // Explicit undefined clears an override (e.g. returning to the CLI's
       // default effort); omitted fields still survive a partial patch.
       if (codex) this.data.llm.codex = { ...this.data.llm.codex, ...codex };
+      if (claudeCode) this.data.llm.claudeCode = { ...this.data.llm.claudeCode, ...claudeCode };
       const after = connectionKey();
-      if (before !== after && (rest.verification === undefined || this.data.llm.backend === 'codex-cli')) {
+      if (before !== after && (rest.verification === undefined || isCliBackend(this.data.llm.backend))) {
         this.data.llm.verification = undefined;
       }
       if (apiKey !== undefined) {
-        this.writeKey(this.data.llm, apiKey, rest.verification !== undefined || this.data.llm.backend === 'codex-cli');
+        this.writeKey(this.data.llm, apiKey, rest.verification !== undefined || isCliBackend(this.data.llm.backend));
       }
     }
     if (patch.vision) {
@@ -447,8 +499,9 @@ export class SettingsStore {
       weakCrypto: !this.cipher.secure,
       onboarding: { ...d.onboarding },
       llm: {
-        backend: d.llm.backend ?? 'openai-compatible',
+        backend: d.llm.backend ?? DEFAULT_LLM_BACKEND,
         codex: { ...d.llm.codex },
+        claudeCode: { ...d.llm.claudeCode },
         baseUrl: d.llm.baseUrl,
         model: d.llm.model,
         answerLang: d.llm.answerLang,

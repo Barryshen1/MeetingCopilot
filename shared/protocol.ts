@@ -5,6 +5,7 @@
 export const PROTOCOL_VERSION = 1;
 
 import type { CodexSettings } from './codex';
+import type { ClaudeCodeSettings } from './claudeCode';
 
 import type { ProviderCapability, ProviderId } from './providerCatalog';
 export type { ProviderCapability, ProviderId } from './providerCatalog';
@@ -32,6 +33,18 @@ export type ScreenshotMode = 'general' | 'coding-test';
 export type KbSlot = 'resume' | 'jd';
 /** Keep every visible reference file eligible for the bounded answer prompt. */
 export const MAX_SESSION_ATTACHMENTS = 20;
+/**
+ * Where AI answers come from. The two CLI backends reuse a locally signed-in
+ * CLI (text and screenshots, no API key); the API backend needs a key.
+ */
+export type LlmBackend = 'openai-compatible' | 'codex-cli' | 'claude-code-cli';
+/** New profiles, and profiles that never chose a backend (electron/settings.ts). */
+export const DEFAULT_LLM_BACKEND: LlmBackend = 'claude-code-cli';
+
+/** true for the backends whose sign-in lives in a local CLI, not an API key */
+export function isCliBackend(backend: LlmBackend | undefined): backend is 'codex-cli' | 'claude-code-cli' {
+  return backend === 'codex-cli' || backend === 'claude-code-cli';
+}
 
 /** Text extracted from a user-selected local file. */
 export interface PickedDocument {
@@ -176,8 +189,9 @@ export interface SettingsFile {
   /** first-run wizard state; added in v2 (migrated files are grandfathered) */
   onboarding: OnboardingState;
   llm: {
-    backend?: 'openai-compatible' | 'codex-cli';
+    backend?: LlmBackend;
     codex?: CodexSettings;
+    claudeCode?: ClaudeCodeSettings;
     baseUrl: string;
     model: string;
     /** reply language for AI answers (R: 模式选择); default auto */
@@ -288,8 +302,9 @@ export interface PublicSettings {
   /** first-run wizard state — public so the UI can show the upgrade notice */
   onboarding: OnboardingState;
   llm: {
-    backend?: 'openai-compatible' | 'codex-cli';
+    backend?: LlmBackend;
     codex?: CodexSettings;
+    claudeCode?: ClaudeCodeSettings;
     baseUrl: string;
     model: string;
     answerLang: AnswerLang;
@@ -358,8 +373,9 @@ export interface PublicSettings {
  */
 export interface SettingsPatch {
   llm?: {
-    backend?: 'openai-compatible' | 'codex-cli';
+    backend?: LlmBackend;
     codex?: CodexSettings;
+    claudeCode?: ClaudeCodeSettings;
     baseUrl?: string;
     model?: string;
     answerLang?: AnswerLang;
@@ -588,6 +604,10 @@ export interface TrayCommandPayload {
 export const IPC = {
   codexStatus: 'codex:status',
   codexTest: 'codex:test',
+  /** invoke: (ClaudeCodeSettings?) => ClaudeCodeStatus — install/sign-in check, never generates */
+  claudeCodeStatus: 'claude-code:status',
+  /** invoke: (ClaudeCodeSettings?) => ClaudeCodeTestResult — one small real generation */
+  claudeCodeTest: 'claude-code:test',
   /** renderer -> main, fire and forget: (ArrayBuffer pcmF32, captureTs, Speaker) */
   capturePcm: 'capture:pcm',
   /** invoke: (text) => string — cheap one-shot translation to Chinese (inline, off-session) */

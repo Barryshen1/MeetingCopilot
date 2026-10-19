@@ -17,16 +17,17 @@ Live transcription of the other side · first-person teleprompter answers · cap
 
 </div>
 
-## Personal fork: Codex CLI
+## Personal fork: Claude Code CLI and Codex CLI
 
 This is [Barryshen1's personal fork](https://github.com/Barryshen1/MeetingCopilot) of [JWM0203/MeetingCopilot](https://github.com/JWM0203/MeetingCopilot). The original project, artwork and Apache-2.0 license are retained.
 
+- **Claude Code CLI answers (default):** AI answers, translation, meeting memo and screenshot questions use your installed Claude Code CLI and its existing sign-in (`claude auth login`) — no API key to paste. New profiles start on `claude-opus-5-5` at `low` effort; pick another model or effort in Settings. Existing profiles switch to it once, Codex profiles included (their Codex settings are kept); only a profile on a saved API key keeps its backend. See [Claude Code CLI setup](docs/CLAUDE_CODE_CLI.en.md) ([中文](docs/CLAUDE_CODE_CLI.zh-CN.md)).
 - **Codex CLI answers:** use your installed Codex CLI and its existing sign-in for answers, translation, meeting memo and screenshot questions. See [Codex CLI setup](docs/CODEX_CLI.en.md) ([中文](docs/CODEX_CLI.zh-CN.md)). The integration was inspired by the CLI-provider workflow in [Natively](https://github.com/Natively-AI-assistant/natively-cluely-ai-assistant).
 - **Local macOS app:** build an Apple-silicon `.app` with `npm run dist:mac:dir`, or an ad-hoc-signed ZIP with `npm run dist:mac`. See [macOS installation](docs/user/INSTALL_MACOS.en.md).
-- **Transcription stays separate:** Codex CLI handles text and images; choose a local or cloud speech-recognition backend. On macOS 14.2+ the other party is recorded straight from what the Mac plays, without the microphone or a virtual audio device.
+- **Transcription stays separate:** Claude Code or Codex CLI handles text and images; choose a local or cloud speech-recognition backend. On macOS 14.2+ the other party is recorded straight from what the Mac plays, without the microphone or a virtual audio device.
 - **Live translation:** the transcript pane's *Live translate* button sends the other party to Alibaba Cloud Model Studio `qwen3.8-livetranslate-flash-realtime` and shows the original next to a Chinese (or English) translation; see [Live translation](#live-translation-them).
 
-The upstream downloads and demos below describe the original project. Upstream binaries do not include this fork's Codex CLI integration.
+The upstream downloads and demos below describe the original project. Upstream binaries do not include this fork's Claude Code CLI or Codex CLI integration.
 
 ## Download
 
@@ -94,7 +95,7 @@ You can reopen the wizard any time from *⚙ Settings → Run the setup wizard a
 - 📄 **Per-session materials** — keep the resume and JD slots, and add other reference files such as project notes, a portfolio, interview preparation, data, or source code. Add multiple files in one dialog and remove each one separately. The app extracts text locally and stores it with that session; bounded excerpts go to the configured answer provider for answers and API cache prewarming. Supported formats are listed below. Question-type detection (behavioral / technical / smalltalk) appends a zero-latency answering hint.
 - 🔁 **Rolling interview memo** — a structured summary (questions asked / facts you claimed / interviewer focus) updates asynchronously after each answer, so a 60-minute interview stays self-consistent while per-request tokens stay flat.
 - 🚀 **Prefix-cache prewarm** — pressing ▶ fires a 1-token request that pre-builds the LLM provider's KV prefix cache, so the first real answer prefills from cache (verified via DeepSeek `prompt_cache_hit_tokens`); kept warm automatically during capture.
-- 🖼️ **Screenshot Q&A** — click 📷 or press the screenshot hotkey to capture the window you are working in (Chrome, a PDF, an editor, on any display) and ask Codex or your configured vision model; the image holds only that window, so MeetingCopilot never appears in it and is not hidden first (macOS; other platforms capture the display under the pointer). Use **Region** to drag-select a smaller area on any display. General screenshots can use the current session's materials. In the **Answer mode** selector, choose **Coding Test** to switch the whole app to programming problems: screenshots, region captures, typed questions, ⚡Ans and Auto answers all return fenced code (Python 3 by default, a comment on every line) plus the problem, the approach, a walkthrough with a small dry run, time/space complexity and edge cases; anything that is not a programming problem gets a short answer. Session materials (resume, JD, reference files) still ride along. Code in answers is shown as a monospace block with a **Copy code** button. The choice is saved for the next launch.
+- 🖼️ **Screenshot Q&A** — click 📷 or press the screenshot hotkey to capture the window you are working in (Chrome, a PDF, an editor, on any display) and ask Claude Code, Codex or your configured vision model; the image holds only that window, so MeetingCopilot never appears in it and is not hidden first (macOS; other platforms capture the display under the pointer). Use **Region** to drag-select a smaller area on any display. General screenshots can use the current session's materials. In the **Answer mode** selector, choose **Coding Test** to switch the whole app to programming problems: screenshots, region captures, typed questions, ⚡Ans and Auto answers all return fenced code (Python 3 by default, a comment on every line) plus the problem, the approach, a walkthrough with a small dry run, time/space complexity and edge cases; anything that is not a programming problem gets a short answer. Session materials (resume, JD, reference files) still ride along. Code in answers is shown as a monospace block with a **Copy code** button. The choice is saved for the next launch.
 - 🥷 **Capture protection** — content protection plus a global hide/show hotkey. Windows excludes the window from supported captures; macOS cannot guarantee invisibility against modern ScreenCaptureKit clients.
 - 🩺 **Connection tests, service status and local diagnostics** — one click tells you whether a key, the network or the account is at fault (14 normalized error codes), and the diagnostics report is built locally with no keys, transcripts or imported document text in it.
 - 🔔 **System tray** — show/hide, start/stop transcription, new session, settings, service status, help and quit, all without a taskbar button. Optional start-at-login, off by default.
@@ -154,7 +155,7 @@ Once Model Studio *Cloud streaming* is configured, a **Live translate** button a
 |---|---|
 | OS | Windows 10 / 11, or Apple-silicon macOS 14+ |
 | Cloud ASR *(recommended)* | Alibaba Cloud DashScope API key, or a MiMo key |
-| LLM | An installed, signed-in Codex CLI, or an OpenAI-compatible API key |
+| LLM | An installed, signed-in Claude Code CLI (default) or Codex CLI, or an OpenAI-compatible API key |
 | Local streaming ASR | Python 3.10/3.11 with `funasr` + `torch`; CUDA, Apple MPS, or CPU fallback |
 | Experimental MOSS ASR | isolated Python 3.12 env; NVIDIA CUDA BF16 first, automatic CPU fallback |
 | Local Whisper *(offline fallback)* | `whisper-large-v3-turbo` ONNX weights; DirectML on Windows, CPU elsewhere |
@@ -201,7 +202,7 @@ Place [`onnx-community/whisper-large-v3-turbo-ONNX`](https://huggingface.co/onnx
 
 - API keys are encrypted at rest with Electron `safeStorage` (Windows DPAPI / macOS Keychain) and never reach the renderer process.
 - All MeetingCopilot data (settings / sessions / materials) lives under Electron's per-user `userData` directory (`%APPDATA%/MeetingCopilot/` on Windows and `~/Library/Application Support/MeetingCopilot/` on macOS). MeetingCopilot has no telemetry, account service or hosted backend.
-- With the local ASR backends, audio never leaves your machine. Transcripts, selected materials and requested screenshots go to your configured answer provider, including Codex when selected. Codex manages its own credentials and service connection; see [Codex CLI setup](docs/CODEX_CLI.en.md).
+- With the local ASR backends, audio never leaves your machine. Transcripts, selected materials and requested screenshots go to your configured answer provider, including Claude Code or Codex when selected. Each CLI manages its own credentials and service connection; see [Claude Code CLI setup](docs/CLAUDE_CODE_CLI.en.md) and [Codex CLI setup](docs/CODEX_CLI.en.md).
 - The diagnostics report is built locally and contains no keys, transcripts or imported document text — it is safe to paste into a public issue.
 
 ## Development

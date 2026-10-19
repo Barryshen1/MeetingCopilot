@@ -175,6 +175,29 @@ describe('deriveServiceHealth — LLM, audio, vision', () => {
     expect(vision.optional).toBe(true);
   });
 
+  it('allows Claude Code answers without an API key and uses its own test verdict', () => {
+    const s = settings();
+    s.llm = { ...s.llm, backend: 'claude-code-cli', claudeCode: { model: 'claude-opus-5-5', effort: 'low' }, apiKeySet: false, baseUrl: '', model: '' };
+    s.llm.verification = undefined;
+    const r = deriveServiceHealth(input({ settings: s }));
+    expect(r.llm.state).toBe('untested');
+    expect(r.answersAvailable).toBe(true);
+    s.llm.verification = okVerdict;
+    expect(deriveServiceHealth(input({ settings: s })).llm.state).toBe('ok');
+    s.llm.verification = badVerdict;
+    expect(deriveServiceHealth(input({ settings: s })).llm.state).toBe('failed');
+  });
+
+  it('routes Claude Code screenshots through the CLI, not the vision slot', () => {
+    const s = settings();
+    s.llm.backend = 'claude-code-cli';
+    expect(deriveServiceHealth(input({ settings: s })).vision.state).toBe('off');
+    s.llm.answerWithVision = true;
+    const vision = deriveServiceHealth(input({ settings: s })).vision;
+    expect(vision.state).toBe('untested');
+    expect(vision.slot).toBeUndefined();
+  });
+
   it('marks the LLM unconfigured without a key and disables answers', () => {
     const s = settings();
     s.llm.apiKeySet = false;

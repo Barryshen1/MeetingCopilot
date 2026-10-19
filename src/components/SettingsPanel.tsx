@@ -1,14 +1,17 @@
 import { useEffect, useState } from 'react';
-import type {
-  AnswerLang,
-  AsrLanguage,
-  FontScale,
-  ProviderSlot,
-  ProviderTestResult,
-  ProviderVerification,
-  PublicSettings,
-  ThemeMode,
-  UiLang,
+import {
+  DEFAULT_LLM_BACKEND,
+  isCliBackend,
+  type AnswerLang,
+  type AsrLanguage,
+  type FontScale,
+  type LlmBackend,
+  type ProviderSlot,
+  type ProviderTestResult,
+  type ProviderVerification,
+  type PublicSettings,
+  type ThemeMode,
+  type UiLang,
 } from '../../shared/protocol';
 import {
   LOCAL_REALTIME_MODELS,
@@ -28,12 +31,14 @@ import {
 } from '../../shared/providerTestRequests';
 import { sanitizeApiKeyInput } from '../../shared/keyInput';
 import type { CodexSettings } from '../../shared/codex';
+import type { ClaudeCodeSettings } from '../../shared/claudeCode';
 import { liveTranslateUrl, type LiveTranslateTarget } from '../../shared/liveTranslate';
 import { listMics } from '../audio/micCapture';
 import { useT } from '../i18n';
 import { ConnectionResult } from './providers/ConnectionResult';
 import { connectionResultCopy } from './providers/copy';
 import { CodexProviderSettings } from './CodexProviderSettings';
+import { ClaudeCodeProviderSettings } from './ClaudeCodeProviderSettings';
 import { InWindowSelect } from './InWindowSelect';
 
 type AsrBackend = 'local' | 'cloud' | 'cloud-realtime' | 'local-realtime';
@@ -125,7 +130,7 @@ export function SettingsPanel({
   onOpenDiagnostics,
   onOpenHelp,
   onSettingsRefreshed,
-  focusCodexModel = false,
+  focusCliModel = false,
 }: {
   settings: PublicSettings;
   onSaved: (s: PublicSettings) => void;
@@ -137,13 +142,15 @@ export function SettingsPanel({
   /** in-app help center (also reachable from the tray) */
   onOpenHelp?: () => void;
   onSettingsRefreshed?: (settings: PublicSettings) => void;
-  /** Opened from the answer panel's model shortcut. */
-  focusCodexModel?: boolean;
+  /** Opened from the answer panel's model shortcut (Claude Code or Codex). */
+  focusCliModel?: boolean;
 }) {
   const t = useT();
-  const [llmBackend, setLlmBackend] = useState(settings.llm.backend ?? 'openai-compatible');
+  const [llmBackend, setLlmBackend] = useState<LlmBackend>(settings.llm.backend ?? DEFAULT_LLM_BACKEND);
   const [codexConfig, setCodexConfig] = useState<CodexSettings>(settings.llm.codex ?? {});
-  const [codexTesting, setCodexTesting] = useState(false);
+  const [claudeCodeConfig, setClaudeCodeConfig] = useState<ClaudeCodeSettings>(settings.llm.claudeCode ?? {});
+  /** a CLI connection test (Claude Code or Codex) is generating right now */
+  const [cliTesting, setCliTesting] = useState(false);
   const [baseUrl, setBaseUrl] = useState(settings.llm.baseUrl);
   const [model, setModel] = useState(settings.llm.model);
   const [answerLang, setAnswerLang] = useState<AnswerLang>(settings.llm.answerLang);
@@ -197,7 +204,7 @@ export function SettingsPanel({
    */
   const [live, setLive] = useState<PublicSettings>(settings);
   const [tests, setTests] = useState<Partial<Record<ProviderSlot, SlotTest>>>({});
-  const anyTesting = codexTesting || Object.values(tests).some((s) => s?.testing);
+  const anyTesting = cliTesting || Object.values(tests).some((s) => s?.testing);
   const resultCopy = connectionResultCopy(t);
 
   useEffect(() => {
@@ -207,14 +214,14 @@ export function SettingsPanel({
   }, []);
 
   useEffect(() => {
-    if (!focusCodexModel || llmBackend !== 'codex-cli') return;
+    if (!focusCliModel || !isCliBackend(llmBackend)) return;
     const frame = requestAnimationFrame(() => {
-      const picker = document.getElementById('codex-model');
+      const picker = document.getElementById(llmBackend === 'claude-code-cli' ? 'claude-code-model' : 'codex-model');
       picker?.scrollIntoView({ block: 'center' });
       picker?.focus({ preventScroll: true });
     });
     return () => cancelAnimationFrame(frame);
-  }, [focusCodexModel, llmBackend]);
+  }, [focusCliModel, llmBackend]);
 
   /**
    * One real provider round-trip on an explicit click. A key typed above wins
@@ -296,6 +303,11 @@ export function SettingsPanel({
             model: codexConfig.model?.trim() ?? '',
             reasoningEffort: codexConfig.reasoningEffort,
             fastMode: codexConfig.fastMode !== false,
+          },
+          claudeCode: {
+            binaryPath: claudeCodeConfig.binaryPath?.trim() ?? '',
+            model: claudeCodeConfig.model?.trim() ?? '',
+            effort: claudeCodeConfig.effort,
           },
           baseUrl: baseUrl.trim(),
           model: model.trim(),
@@ -550,6 +562,7 @@ export function SettingsPanel({
 
   const llmSummary = (): string => {
     if (llmBackend === 'codex-cli') return `Codex CLI · ${codexConfig.model || t.settings.codexDefaultModel}`;
+    if (llmBackend === 'claude-code-cli') return `Claude Code CLI · ${claudeCodeConfig.model || t.settings.claudeCodeDefaultModel}`;
     const p = findPresetByEndpoint(baseUrl, model, 'text-llm');
     return p ? presetName(p) : `${model || '—'}`;
   };
@@ -769,19 +782,28 @@ export function SettingsPanel({
           value={llmBackend}
           ariaLabel={t.settings.llmBackend}
           disabled={anyTesting}
-          onChange={(value) => setLlmBackend(value as 'openai-compatible' | 'codex-cli')}
+          onChange={(value) => setLlmBackend(value as LlmBackend)}
           options={[
-            { value: 'openai-compatible', label: t.settings.llmApiBackend },
+            { value: 'claude-code-cli', label: t.settings.llmClaudeCodeBackend },
             { value: 'codex-cli', label: 'Codex CLI' },
+            { value: 'openai-compatible', label: t.settings.llmApiBackend },
           ]}
         />
       </div>
-      {llmBackend === 'codex-cli' ? (
+      {llmBackend === 'claude-code-cli' ? (
+        <ClaudeCodeProviderSettings
+          config={claudeCodeConfig}
+          saved={live}
+          onChange={setClaudeCodeConfig}
+          onTestingChange={setCliTesting}
+          onSettingsRefreshed={(next) => { setLive(next); onSettingsRefreshed?.(next); }}
+        />
+      ) : llmBackend === 'codex-cli' ? (
         <CodexProviderSettings
           config={codexConfig}
           saved={live}
           onChange={setCodexConfig}
-          onTestingChange={setCodexTesting}
+          onTestingChange={setCliTesting}
           onSettingsRefreshed={(next) => { setLive(next); onSettingsRefreshed?.(next); }}
         />
       ) : <>
@@ -966,7 +988,7 @@ export function SettingsPanel({
           </div>
         )}
 
-        {llmBackend !== 'codex-cli' && <>
+        {!isCliBackend(llmBackend) && <>
         <div className="settings-section">{t.settings.textSection}</div>
         <div className="settings-row">
           <label>{t.settings.baseUrl}</label>
@@ -1016,6 +1038,7 @@ export function SettingsPanel({
         </div>
         </>}
         {llmBackend === 'codex-cli' && <div className="settings-hint">{t.settings.codexVisionHint}</div>}
+        {llmBackend === 'claude-code-cli' && <div className="settings-hint">{t.settings.claudeCodeVisionHint}</div>}
 
         <div className="settings-section">{t.settings.asrSection}</div>
         <div className="settings-row">

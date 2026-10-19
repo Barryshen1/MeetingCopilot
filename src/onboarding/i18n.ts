@@ -71,9 +71,9 @@ const zh = {
     selected: '已选择',
     select: '选择此方案',
     transcriptionOnly: '只使用实时转写，暂不配置 AI 回答',
-    advanced: 'Codex CLI、高级配置与本地模式',
+    advanced: 'Claude Code／Codex CLI、高级配置与本地模式',
     advancedNote:
-      '选择此项直接进入主界面。在设置里选择「AI 回答后端 → Codex CLI」并测试登录；也可以配置本地 FunASR／MOSS／Whisper 和自定义服务商。',
+      '选择此项直接进入主界面。AI 回答默认使用 Claude Code CLI：在终端运行 claude auth login 登录后，到设置中测试连接；也可以把「AI 回答后端」改为 Codex CLI，或配置本地 FunASR／MOSS／Whisper 和自定义服务商。',
   },
   provider: {
     title: '配置服务',
@@ -238,7 +238,7 @@ const zh = {
     recommended: '低延迟推荐',
     'mimo-simple': '极简配置（Beta）',
     'transcription-only': '仅实时转写',
-    advanced: 'Codex CLI、高级配置与本地模式',
+    advanced: 'Claude Code／Codex CLI、高级配置与本地模式',
   } as Record<'recommended' | 'mimo-simple' | 'transcription-only' | 'advanced', string>,
 };
 
@@ -307,9 +307,9 @@ const en: SetupDict = {
     selected: 'Selected',
     select: 'Choose this plan',
     transcriptionOnly: 'Live transcription only — skip AI answers for now',
-    advanced: 'Codex CLI, advanced setup and local modes',
+    advanced: 'Claude Code / Codex CLI, advanced setup and local modes',
     advancedNote:
-      'Choose this to open the main window. In Settings, select AI answer backend → Codex CLI and test your login. You can also configure local FunASR / MOSS / Whisper and custom providers there.',
+      'Choose this to open the main window. AI answers use Claude Code CLI by default: run claude auth login in Terminal, then test the connection in Settings. You can also switch AI answer backend to Codex CLI, or configure local FunASR / MOSS / Whisper and custom providers there.',
   },
   provider: {
     title: 'Configure your services',
@@ -479,7 +479,7 @@ const en: SetupDict = {
     recommended: 'Low latency (recommended)',
     'mimo-simple': 'Minimal setup (Beta)',
     'transcription-only': 'Transcription only',
-    advanced: 'Codex CLI, advanced setup and local modes',
+    advanced: 'Claude Code / Codex CLI, advanced setup and local modes',
   },
 };
 
