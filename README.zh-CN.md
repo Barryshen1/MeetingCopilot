@@ -17,16 +17,17 @@
 
 </div>
 
-## 个人分支：Codex CLI
+## 个人分支：Claude Code CLI 与 Codex CLI
 
 这是 [Barryshen1 的个人分支](https://github.com/Barryshen1/MeetingCopilot)，基于 [JWM0203/MeetingCopilot](https://github.com/JWM0203/MeetingCopilot)，保留原项目署名、素材和 Apache-2.0 协议。
 
+- **通过 Claude Code CLI 回答（默认）：**AI 回答、翻译、会议备忘和截图问答默认调用本机已安装并登录（`claude auth login`）的 Claude Code CLI，无需粘贴 API Key。新配置默认使用 `claude-opus-5-5` 和 `low` 推理强度，可在设置中更改。已有配置会自动切换一次，包括原来使用 Codex 的配置（Codex 设置会保留）；只有已保存 API Key 的配置保持原后端不变。配置见 [Claude Code CLI 指南](docs/CLAUDE_CODE_CLI.zh-CN.md)（[English](docs/CLAUDE_CODE_CLI.en.md)）。
 - **通过 Codex CLI 回答：**调用本机已安装并登录的 Codex CLI，支持回答、翻译、会议备忘和截图问答。配置见 [Codex CLI 指南](docs/CODEX_CLI.zh-CN.md)（[English](docs/CODEX_CLI.en.md)）。接入方式参考了 [Natively](https://github.com/Natively-AI-assistant/natively-cluely-ai-assistant) 的 CLI 服务商工作流。
 - **本地 macOS 应用：**运行 `npm run dist:mac:dir` 生成 Apple 芯片 `.app`，或 `npm run dist:mac` 生成临时签名的 ZIP。详见 [macOS 安装指南](docs/user/INSTALL_MACOS.zh-CN.md)。
-- **转录单独配置：**Codex CLI 处理文字和图片；语音转录仍需选择本地或云端后端。macOS 14.2+ 直接录制 Mac 正在播放的声音作为「对方」，不使用麦克风，也不需要虚拟音频设备。
+- **转录单独配置：**Claude Code 或 Codex CLI 处理文字和图片；语音转录仍需选择本地或云端后端。macOS 14.2+ 直接录制 Mac 正在播放的声音作为「对方」，不使用麦克风，也不需要虚拟音频设备。
 - **实时翻译：**转录栏的「实时翻译」按钮把对方的话交给阿里云百炼 `qwen3.8-livetranslate-flash-realtime`，原文和中文（或英文）译文对照显示，见下方[实时翻译](#实时翻译对方)。
 
-下方的上游下载和演示介绍原项目。上游安装包不包含本分支的 Codex CLI 接入。
+下方的上游下载和演示介绍原项目。上游安装包不包含本分支的 Claude Code CLI 与 Codex CLI 接入。
 
 ## 下载
 
@@ -94,7 +95,7 @@
 - 📄 **每个会话可添加多份资料**：保留简历和岗位 JD 专用位置，还可加入项目笔记、作品集、面试准备材料、数据或源代码。一次可多选文件导入，也可逐份移除。应用在本地提取文本并随会话保存；提问或为 API 回答模型预热缓存时，限定长度的资料会发送给已配置的回答服务。支持的格式见下文。自动识别题型（行为 / 技术 / 寒暄）并附零延迟提示。
 - 🔁 **滚动面试备忘**：每次回答后异步更新一份结构化备忘（已问问题 / 我已声称的事实 / 面试官关注点），一小时的面试前后不打架，每次请求的 token 数恒定不膨胀。
 - 🚀 **前缀缓存预热**：点 ▶ 的同时发出一条 1-token 请求，提前建好大模型的 KV 前缀缓存，第一个真实问题直接命中（DeepSeek `prompt_cache_hit_tokens` 实测验证），采集期间自动保温。
-- 🖼️ **截图问答**：点击 📷 或按截图快捷键，截取你正在使用的那个窗口（如 Chrome、PDF、编辑器，无论在哪块屏幕上）交给 Codex 或已配置的视觉模型回答；截图只含该窗口，MeetingCopilot 不会出现在里面，也不用先隐藏（macOS；其他平台截取鼠标所在显示器）。需要局部截图时可点 **框选**，在任意一块屏幕上拖选。普通截图可参考当前会话资料。在「回答模式」中选 **Coding Test**，整个应用都切换到编程题模式：截图、框选、文字提问、⚡答和持续答都会给出带语言标记的代码（默认 Python 3，每一行都有注释），以及题意、思路、逐步讲解（含一个小例子的 dry run）、时间/空间复杂度和边界情况；不是编程题时就简短作答。会话资料（简历、JD、参考文件）照常作为背景。回答里的代码以等宽代码块显示，带「复制代码」按钮。该选择会保存到下次启动。
+- 🖼️ **截图问答**：点击 📷 或按截图快捷键，截取你正在使用的那个窗口（如 Chrome、PDF、编辑器，无论在哪块屏幕上）交给 Claude Code、Codex 或已配置的视觉模型回答；截图只含该窗口，MeetingCopilot 不会出现在里面，也不用先隐藏（macOS；其他平台截取鼠标所在显示器）。需要局部截图时可点 **框选**，在任意一块屏幕上拖选。普通截图可参考当前会话资料。在「回答模式」中选 **Coding Test**，整个应用都切换到编程题模式：截图、框选、文字提问、⚡答和持续答都会给出带语言标记的代码（默认 Python 3，每一行都有注释），以及题意、思路、逐步讲解（含一个小例子的 dry run）、时间/空间复杂度和边界情况；不是编程题时就简短作答。会话资料（简历、JD、参考文件）照常作为背景。回答里的代码以等宽代码块显示，带「复制代码」按钮。该选择会保存到下次启动。
 - 🥷 **采集保护**：内容保护配合全局快捷键隐藏/呼出。Windows 可在受支持的采集方式中排除窗口；macOS 面对新版 ScreenCaptureKit 无法保证完全隐身。
 - 🩺 **连接测试、服务状态与本地诊断**：一键分辨是 Key、网络还是账号的问题（14 个统一错误代码）；诊断报告在本机生成，不含 Key、转写和导入文档的内容。
 - 🔔 **系统托盘**：显示/隐藏窗口、开始/停止转写、新建会话、设置、服务状态、帮助、退出，全在托盘菜单里，不占任务栏。开机自动启动为可选项，默认关闭。
@@ -154,7 +155,7 @@
 |---|---|
 | 操作系统 | Windows 10 / 11，或 Apple 芯片 macOS 14+ |
 | 云端转录（**推荐**） | 阿里云百炼（DashScope）key，或 MiMo key |
-| 大模型 | 本机已安装并登录的 Codex CLI，或任意 OpenAI 兼容 API key |
+| 大模型 | 本机已安装并登录的 Claude Code CLI（默认）或 Codex CLI，或任意 OpenAI 兼容 API key |
 | 本地流式转录 | Python 3.10/3.11 + `funasr` + `torch`；支持 CUDA、Apple MPS 或 CPU 回退 |
 | MOSS 实验转录 | 独立 Python 3.12 环境；NVIDIA CUDA BF16 优先，失败自动回退 CPU |
 | 本地 Whisper（离线兜底） | `whisper-large-v3-turbo` ONNX 权重；Windows 用 DirectML，其他平台用 CPU |
@@ -197,7 +198,7 @@ MOSS 是整段生成模型，不是原生流式 ASR。本应用会在一句话�
 
 - API key 使用 Electron `safeStorage`（Windows DPAPI / macOS Keychain）加密落盘，永远不进渲染进程。
 - MeetingCopilot 数据位于 Electron 的用户数据目录（Windows：`%APPDATA%/MeetingCopilot/`；macOS：`~/Library/Application Support/MeetingCopilot/`）。MeetingCopilot 本身没有遥测、账号服务或托管后端。
-- 用本地转录后端时，音频不出你的电脑。转录文本、所选资料和主动请求的截图会发送给所配置的回答服务，包括选用的 Codex。Codex 自行管理凭据和服务连接，详见 [Codex CLI 指南](docs/CODEX_CLI.zh-CN.md)。
+- 用本地转录后端时，音频不出你的电脑。转录文本、所选资料和主动请求的截图会发送给所配置的回答服务，包括选用的 Claude Code 或 Codex。两个 CLI 各自管理凭据和服务连接，详见 [Claude Code CLI 指南](docs/CLAUDE_CODE_CLI.zh-CN.md) 和 [Codex CLI 指南](docs/CODEX_CLI.zh-CN.md)。
 - 诊断报告在本机生成，不含 Key、转写和导入文档的内容，可以直接贴到公开 issue。
 
 ## 开发

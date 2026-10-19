@@ -6,11 +6,12 @@ const messages: ChatMessage[] = [{ role: 'user', content: 'Summarize this meetin
 
 function setup(config: TextProviderConfig) {
   const codex = { chat: vi.fn(async () => ({ text: 'Codex reply' })) };
+  const claudeCode = { chat: vi.fn(async () => ({ text: 'Claude reply' })) };
   const api = {
     chatOnce: vi.fn(async () => ({ text: 'API reply' })),
     chatStream: vi.fn(async () => ({ text: 'API reply' })),
   };
-  return { provider: new TextProvider(() => config, codex, api), codex, api };
+  return { provider: new TextProvider(() => config, codex, claudeCode, api), codex, claudeCode, api };
 }
 
 describe('text provider routing', () => {
@@ -55,5 +56,33 @@ describe('text provider routing', () => {
     const callbacks = { onDelta: vi.fn() };
     await provider.stream(imageMessages, callbacks, signal);
     expect(codex.chat).toHaveBeenCalledWith({}, imageMessages, callbacks, signal);
+  });
+
+  it('routes Claude Code answers, memo updates and screenshots without an API key', async () => {
+    const config: TextProviderConfig = {
+      backend: 'claude-code-cli', claudeCode: { model: 'claude-opus-5-5', effort: 'low' },
+      codex: { model: 'unused' }, baseUrl: 'https://unused.test', model: 'api-model',
+    };
+    const { provider, codex, claudeCode, api } = setup(config);
+    const imageMessages: ChatMessage[] = [{ role: 'user', content: [
+      { type: 'text', text: 'Explain this slide.' },
+      { type: 'image_url', image_url: { url: 'data:image/png;base64,dGVzdA==' } },
+    ] }];
+    const callbacks = { onDelta: vi.fn() };
+    const signal = new AbortController().signal;
+    expect(provider.usesCli).toBe(true);
+    expect(provider.configured).toBe(true);
+    expect(await provider.stream(imageMessages, callbacks, signal)).toEqual({ text: 'Claude reply' });
+    await provider.once(messages, { maxTokens: 700, signal });
+    expect(claudeCode.chat).toHaveBeenNthCalledWith(1, config.claudeCode, imageMessages, callbacks, signal);
+    expect(claudeCode.chat).toHaveBeenCalledTimes(2);
+    expect(codex.chat).not.toHaveBeenCalled();
+    expect(api.chatStream).not.toHaveBeenCalled();
+    expect(api.chatOnce).not.toHaveBeenCalled();
+  });
+
+  it('does not treat the API backend as a CLI', () => {
+    expect(setup({ backend: 'openai-compatible', baseUrl: 'https://api.example.test', model: 'm', apiKey: 'test-only' }).provider.usesCli).toBe(false);
+    expect(setup({ backend: 'codex-cli', baseUrl: '', model: '' }).provider.usesCli).toBe(true);
   });
 });

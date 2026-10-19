@@ -53,8 +53,10 @@ import { DOC_EXTENSIONS, DocParseError, extractDocBatch, extractDocText } from '
 import { basename } from 'path';
 import { chatOnce, type ChatResult } from './llm/adapter';
 import { CodexClient } from './llm/codex';
+import { ClaudeCodeClient } from './llm/claudeCode';
 import { TextProvider } from './llm/textProvider';
 import { codexConfigKey, type CodexSettings, type CodexTestResult } from '../shared/codex';
+import { claudeCodeConfigKey, type ClaudeCodeSettings, type ClaudeCodeTestResult } from '../shared/claudeCode';
 import { redactSecrets } from '../shared/redact';
 import { visionChat } from './llm/vision';
 import {
@@ -69,6 +71,7 @@ import {
 import type { AppInfo, KbSlot, LiveTranslateTestResult, RegionPickResult, TranscriptExportResult, PickedDocument, PublicSettings, ScreenshotMode, SessionAttachment, UiLang } from '../shared/protocol';
 import {
   IPC,
+  isCliBackend,
   type AsrEvent,
   type LlmAskPayload,
   type LlmEvent,
@@ -135,6 +138,7 @@ function bootstrap(): void {
   let knowledge: KnowledgeStore;
   let sessionStore: SessionStore;
   let codex: CodexClient;
+  let claudeCode: ClaudeCodeClient;
   let textLlm: TextProvider;
   let osLang: UiLang = 'zh';
   /** set by before-quit so window handlers stop prompting mid-shutdown */
@@ -251,7 +255,7 @@ function bootstrap(): void {
 
   function cipher(): SecretCipher {
     // On macOS, even the availability probe can ask for Keychain access and
-    // block startup after signing changes. Codex-only use needs no app-owned
+    // block startup after signing changes. CLI-only use needs no app-owned
     // secret. Defer Keychain access until an API key is encrypted/decrypted;
     // those operations still require OS encryption and fail if unavailable.
     if (process.platform === 'darwin') return safeCipher;
@@ -458,6 +462,13 @@ function bootstrap(): void {
               await wait(500);
               await shoot('main-settings-codex');
             }
+            const hasClaudeCode = await win?.webContents.executeJavaScript(
+              `(()=>{const el=document.getElementById('claude-code-model');if(!el)return false;el.scrollIntoView({block:'center'});return true;})()`,
+            );
+            if (hasClaudeCode) {
+              await wait(500);
+              await shoot('main-settings-claude-code');
+            }
             // expand 高级 and scroll to it, so the collapsed half is reviewable too
             await win?.webContents.executeJavaScript(
               `(()=>{const p=document.querySelector('.settings');if(!p)return 0;p.querySelectorAll('details').forEach(d=>d.open=true);p.scrollTop=p.scrollHeight;return p.scrollHeight;})()`,
@@ -601,9 +612,14 @@ function bootstrap(): void {
     const codexWorkspace = join(app.getPath('userData'), 'codex-workspace');
     mkdirSync(codexWorkspace, { recursive: true });
     codex = new CodexClient({ cwd: codexWorkspace });
+    // An empty app-owned directory: the CLI never runs inside the user's project.
+    const claudeCodeWorkspace = join(app.getPath('userData'), 'claude-code-workspace');
+    mkdirSync(claudeCodeWorkspace, { recursive: true });
+    claudeCode = new ClaudeCodeClient({ cwd: claudeCodeWorkspace, lang: () => settings.data.ui.lang ?? osLang });
     textLlm = new TextProvider(
       () => ({ ...settings.data.llm, apiKey: settings.getLlmApiKey() }),
       codex,
+      claudeCode,
     );
 
     // Electron's `audio: loopback` display-media source is Windows-only.
@@ -647,7 +663,7 @@ function bootstrap(): void {
     }
 
     async function doPrewarm(prefix: string, reason: string): Promise<void> {
-      if (textLlm.usesCodex) return;
+      if (textLlm.usesCli) return;
       const apiKey = settings.getLlmApiKey();
       if (!apiKey || settings.data.llm.answerWithVision) return; // vision path ≠ DeepSeek
       lastPrefix = prefix;
@@ -959,6 +975,36 @@ function bootstrap(): void {
       return result;
     });
 
+    // Claude Code keeps its own login as well. Status reads `claude --version`
+    // and `claude auth status` display fields only; never tokens.
+    ipcMain.handle(IPC.claudeCodeStatus, (_e, config?: ClaudeCodeSettings) =>
+      claudeCode.check(config ?? settings.data.llm.claudeCode ?? {}),
+    );
+    ipcMain.handle(IPC.claudeCodeTest, async (_e, incoming?: ClaudeCodeSettings): Promise<ClaudeCodeTestResult> => {
+      const config = { ...(incoming ?? settings.data.llm.claudeCode ?? {}) };
+      const start = Date.now();
+      let result: ClaudeCodeTestResult;
+      try {
+        const reply = await claudeCode.chat(config, [
+          { role: 'system', content: 'This is a connection test. Reply with exactly OK.' },
+          { role: 'user', content: 'Reply with OK.' },
+        ], { onDelta: () => {} });
+        if (!reply.text.trim()) throw new Error('Claude Code returned an empty response.');
+        result = { ok: true, message: 'Claude Code CLI returned a response.', latencyMs: Date.now() - start };
+      } catch (error) {
+        result = { ok: false, message: redactSecrets((error as Error).message).slice(0, 500), latencyMs: Date.now() - start };
+      }
+      // A test of an unsaved draft must not mark another configuration healthy.
+      if (settings.data.llm.backend === 'claude-code-cli' && claudeCodeConfigKey(config) === claudeCodeConfigKey(settings.data.llm.claudeCode)) {
+        settings.recordVerification('llm', {
+          lastTestAt: new Date().toISOString(), lastTestOk: result.ok,
+          lastTestCode: result.ok ? 'OK' : 'PROVIDER_ERROR', latencyMs: result.latencyMs,
+        });
+      }
+      if (!result.ok) recordDiagnosticError('claude-code-test', result.message);
+      return result;
+    });
+
     // ---- provider connection tests (Phase 3) ----
     // Runs ONLY on an explicit user action from the wizard or Settings. The
     // candidate key lives in a local const for the duration of one call: it is
@@ -978,7 +1024,7 @@ function bootstrap(): void {
         );
         // one dedicated write; applyPatch() would restart the ASR engine
         if (request.slot && (request.slot !== 'llm' || (
-          settings.data.llm.backend !== 'codex-cli' &&
+          !isCliBackend(settings.data.llm.backend) &&
           request.baseUrl === settings.data.llm.baseUrl && request.model === settings.data.llm.model
         ))) {
           settings.recordVerification(request.slot, {
@@ -1266,7 +1312,7 @@ function bootstrap(): void {
       // "answer with multimodal": route through the vision provider (proxy-aware,
       // non-streaming). Otherwise stream from the text LLM (direct, fastest).
       const useVision =
-        !textLlm.usesCodex &&
+        !textLlm.usesCli &&
         settings.data.llm.answerWithVision &&
         payload.mode !== 'translate' &&
         !!settings.data.vision.baseUrl &&
@@ -1463,7 +1509,7 @@ function bootstrap(): void {
       const sendEv = (ev: LlmEvent) => win?.webContents.send(IPC.llmEvent, ev);
       const vision = settings.data.vision;
       const apiKey = settings.getVisionApiKey();
-      if (!textLlm.usesCodex && (!vision.baseUrl || !vision.model || !apiKey)) {
+      if (!textLlm.usesCli && (!vision.baseUrl || !vision.model || !apiKey)) {
         sendEv({
           requestId: payload.requestId,
           kind: 'error',
@@ -1485,7 +1531,7 @@ function bootstrap(): void {
           const messages = buildVisionMessages(
             payload.question, dataUrl, background, screenshotMode, settings.data.llm.answerLang, attachments,
           );
-          if (textLlm.usesCodex) {
+          if (textLlm.usesCli) {
             return textLlm.stream(messages, {
               onDelta: (text) => sendEv({ requestId: payload.requestId, kind: 'delta', text }),
             }, ac.signal).then((r) => r.text);
@@ -1568,6 +1614,7 @@ function bootstrap(): void {
   app.on('before-quit', () => {
     try { flushAutoExport(); } catch (e) { console.warn('[export] on quit failed:', (e as Error).message); }
     codex?.dispose();
+    claudeCode?.dispose();
     quitting = true;
     globalShortcut.unregisterAll();
     tray.destroy();

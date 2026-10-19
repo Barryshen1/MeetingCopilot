@@ -11,7 +11,7 @@ import type {
   StoredSession,
   TranscriptExportResult,
 } from '../shared/protocol';
-import { MAX_SESSION_ATTACHMENTS } from '../shared/protocol';
+import { MAX_SESSION_ATTACHMENTS, isCliBackend } from '../shared/protocol';
 import {
   appendSegment,
   nextSegmentId,
@@ -83,7 +83,7 @@ export function App() {
   const [asr, setAsr] = useState<AsrUiState>({ phase: 'loading', workerState: 'loading' });
   const [capturing, setCapturing] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
-  const [focusCodexModel, setFocusCodexModel] = useState(false);
+  const [focusCliModel, setFocusCliModel] = useState(false);
   const [showHealth, setShowHealth] = useState(false);
   const [showDiagnostics, setShowDiagnostics] = useState(false);
   const [showHelp, setShowHelp] = useState(false);
@@ -975,7 +975,7 @@ export function App() {
 
   const visionReady =
     !!settings?.llm.answerWithVision &&
-    (settings.llm.backend === 'codex-cli' || (!!settings?.vision.baseUrl &&
+    (isCliBackend(settings.llm.backend) || (!!settings?.vision.baseUrl &&
     !!settings?.vision.model &&
     !!settings?.vision.apiKeySet));
 
@@ -1043,10 +1043,11 @@ export function App() {
           <button
             className={settings?.llm.answerWithVision ? 'btn btn-on' : 'btn'}
             onClick={() => void toggleAnswerModel()}
-            title={settings?.llm.backend === 'codex-cli' ? t.titlebar.codexVisionTitle : t.titlebar.modelTitle}
+            title={settings?.llm.backend === 'claude-code-cli' ? t.titlebar.claudeCodeVisionTitle
+              : settings?.llm.backend === 'codex-cli' ? t.titlebar.codexVisionTitle : t.titlebar.modelTitle}
           >
-            {settings?.llm.backend === 'codex-cli'
-              ? settings.llm.answerWithVision ? t.titlebar.codexVisionOn : t.titlebar.codexVisionOff
+            {isCliBackend(settings?.llm.backend)
+              ? settings?.llm.answerWithVision ? t.titlebar.codexVisionOn : t.titlebar.codexVisionOff
               : settings?.llm.answerWithVision ? t.titlebar.vision : t.titlebar.textOnly}
           </button>
           <InWindowSelect
@@ -1156,28 +1157,28 @@ export function App() {
       {showSettings && settings && (
         <SettingsPanel
           settings={settings}
-          focusCodexModel={focusCodexModel}
+          focusCliModel={focusCliModel}
           onSaved={(s) => {
             setSettings(s);
             answerLangRef.current = s.llm.answerLang;
             setShowSettings(false);
-            setFocusCodexModel(false);
+            setFocusCliModel(false);
           }}
-          onClose={() => { setShowSettings(false); setFocusCodexModel(false); }}
+          onClose={() => { setShowSettings(false); setFocusCliModel(false); }}
           onSettingsRefreshed={setSettings}
           onRerunWizard={() => {
             setShowSettings(false);
-            setFocusCodexModel(false);
+            setFocusCliModel(false);
             void window.mc.rerunOnboarding();
           }}
           onOpenDiagnostics={() => {
             setShowSettings(false);
-            setFocusCodexModel(false);
+            setFocusCliModel(false);
             setShowDiagnostics(true);
           }}
           onOpenHelp={() => {
             setShowSettings(false);
-            setFocusCodexModel(false);
+            setFocusCliModel(false);
             setShowHelp(true);
           }}
         />
@@ -1231,11 +1232,14 @@ export function App() {
           onShotError={showShotError}
           screenshotMode={settings?.ui.screenshotMode ?? 'general'}
           onScreenshotModeChange={(mode) => void updateScreenshotMode(mode)}
-          codexModel={settings?.llm.backend === 'codex-cli' ? settings.llm.codex?.model : undefined}
-          codexEffort={settings?.llm.backend === 'codex-cli' ? settings.llm.codex?.reasoningEffort : undefined}
-          codexFast={settings?.llm.backend === 'codex-cli' && codexServiceTier(settings.llm.codex) === CODEX_FAST_SERVICE_TIER}
-          onConfigureCodex={settings?.llm.backend === 'codex-cli'
-            ? () => { setFocusCodexModel(true); setShowSettings(true); }
+          cliBackend={isCliBackend(settings?.llm.backend) ? settings?.llm.backend : undefined}
+          cliModel={settings?.llm.backend === 'claude-code-cli' ? settings.llm.claudeCode?.model
+            : settings?.llm.backend === 'codex-cli' ? settings.llm.codex?.model : undefined}
+          cliEffort={settings?.llm.backend === 'claude-code-cli' ? settings.llm.claudeCode?.effort
+            : settings?.llm.backend === 'codex-cli' ? settings.llm.codex?.reasoningEffort : undefined}
+          cliFast={settings?.llm.backend === 'codex-cli' && codexServiceTier(settings.llm.codex) === CODEX_FAST_SERVICE_TIER}
+          onConfigureCli={isCliBackend(settings?.llm.backend)
+            ? () => { setFocusCliModel(true); setShowSettings(true); }
             : undefined}
         />
       </div>

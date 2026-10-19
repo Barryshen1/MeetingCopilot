@@ -1,7 +1,7 @@
 {
   "name": "meeting-copilot",
   "version": "0.2.0-beta.1",
-  "description": "Personal MeetingCopilot fork for Windows and macOS: streaming transcription and answers through Codex CLI or an OpenAI-compatible API",
+  "description": "Personal MeetingCopilot fork for Windows and macOS: streaming transcription and answers through Claude Code CLI, Codex CLI or an OpenAI-compatible API",
   "main": "./out/main/index.js",
   "author": "JWM0203",
   "license": "Apache-2.0",
@@ -31,6 +31,7 @@
     "harness": "node tools/asr-harness.mjs",
     "smoke:llm": "vite-node tools/llm-smoke.ts",
     "smoke:codex": "vite-node tools/codex-smoke.ts",
+    "smoke:claude": "vite-node tools/claude-smoke.ts",
     "smoke:asr:realtime": "node tools/rt-asr-smoke.mjs",
     "smoke:e2e:llm": "node tools/e2e-llm.mjs",
     "smoke:e2e:local": "node tools/e2e-local-lifecycle.mjs",

@@ -11,11 +11,13 @@
  */
 import { useState } from 'react';
 import type { CodexTestResult } from '../../shared/codex';
-import type {
-  ProviderSlot,
-  ProviderTestResult,
-  ProviderVerification,
-  PublicSettings,
+import type { ClaudeCodeTestResult } from '../../shared/claudeCode';
+import {
+  isCliBackend,
+  type ProviderSlot,
+  type ProviderTestResult,
+  type ProviderVerification,
+  type PublicSettings,
 } from '../../shared/protocol';
 import {
   chipTone,
@@ -43,7 +45,7 @@ const TONE_CLASS: Record<string, string> = {
 function targetForSlot(s: PublicSettings, slot: ProviderSlot): EndpointTarget | undefined {
   switch (slot) {
     case 'llm':
-      if (s.llm.backend === 'codex-cli') return undefined;
+      if (isCliBackend(s.llm.backend)) return undefined;
       return {
         capability: 'text-llm',
         providerId: providerIdForEndpoint(s.llm.baseUrl, s.llm.model, 'text-llm'),
@@ -109,14 +111,17 @@ export function ServiceHealthPanel({
     Partial<Record<ProviderSlot, { result: ProviderTestResult; at: number }>>
   >({});
   const [error, setError] = useState<string | null>(null);
-  const [codexResult, setCodexResult] = useState<CodexTestResult>();
+  const [cliResult, setCliResult] = useState<CodexTestResult | ClaudeCodeTestResult>();
 
-  const runCodexTest = async () => {
+  /** the CLI backends test with one small real generation of their own */
+  const runCliTest = async () => {
     setTesting('llm');
     setError(null);
-    setCodexResult(undefined);
+    setCliResult(undefined);
     try {
-      setCodexResult(await window.mc.codexTest(settings.llm.codex));
+      setCliResult(settings.llm.backend === 'claude-code-cli'
+        ? await window.mc.claudeCodeTest(settings.llm.claudeCode)
+        : await window.mc.codexTest(settings.llm.codex));
       onSettingsRefreshed(await window.mc.getSettings());
     } catch (error) {
       setError(t.settings.testCrashed((error as Error).message));
@@ -147,7 +152,7 @@ export function ServiceHealthPanel({
   };
 
   const row = (h: ServiceHealth, label: string, note?: string) => {
-    const codex = h.key === 'llm' && settings.llm.backend === 'codex-cli';
+    const cli = h.key === 'llm' && isCliBackend(settings.llm.backend);
     const target = h.slot ? targetForSlot(settings, h.slot) : undefined;
     const canTest =
       !!h.slot &&
@@ -179,8 +184,8 @@ export function ServiceHealthPanel({
                 {testing === h.slot ? t.health.testing : t.health.retest}
               </button>
             )}
-            {codex && <button className="btn btn-sm" disabled={testing !== null}
-              onClick={() => void runCodexTest()}>
+            {cli && <button className="btn btn-sm" disabled={testing !== null}
+              onClick={() => void runCliTest()}>
               {testing === 'llm' ? t.health.testing : t.health.retest}
             </button>}
             <button className="btn btn-sm" onClick={() => void window.mc.rerunOnboarding()}>
@@ -194,13 +199,13 @@ export function ServiceHealthPanel({
         {h.slot && !fresh && h.state !== 'off' && h.state !== 'unconfigured' && (
           <div className="conn-hint">{verificationLine(h.verification)}</div>
         )}
-        {codex && codexResult && <div role="status">
-          <span className={codexResult.ok ? 'tag tag-ok' : 'tag tag-err'}>
-            {codexResult.ok ? t.settings.testSuccessTag(codexResult.latencyMs) : t.settings.testFailedTag}
+        {cli && cliResult && <div role="status">
+          <span className={cliResult.ok ? 'tag tag-ok' : 'tag tag-err'}>
+            {cliResult.ok ? t.settings.testSuccessTag(cliResult.latencyMs) : t.settings.testFailedTag}
           </span>
-          <div className="conn-hint">{codexResult.message}</div>
+          <div className="conn-hint">{cliResult.message}</div>
         </div>}
-        {h.slot && !codex && (
+        {h.slot && !cli && (
           <ConnectionResult
             copy={copy}
             result={fresh?.result ?? null}
@@ -241,7 +246,12 @@ export function ServiceHealthPanel({
       {partialHint && <div className="settings-hint">{partialHint}</div>}
 
       {row(health.asr, t.health.rowAsr, health.asr.local ? t.health.localBackend : undefined)}
-      {row(health.llm, t.health.rowLlm, settings.llm.backend === 'codex-cli' ? t.health.codexBackend : undefined)}
+      {row(
+        health.llm,
+        t.health.rowLlm,
+        settings.llm.backend === 'claude-code-cli' ? t.health.claudeCodeBackend
+          : settings.llm.backend === 'codex-cli' ? t.health.codexBackend : undefined,
+      )}
       {row(
         health.audio,
         t.health.rowAudio,
@@ -250,8 +260,9 @@ export function ServiceHealthPanel({
       {row(
         health.vision,
         t.health.rowVision,
-        settings.llm.backend === 'codex-cli' ? t.health.codexVision
-          : health.vision.state === 'off' ? t.health.visionOff : undefined,
+        settings.llm.backend === 'claude-code-cli' ? t.health.claudeCodeVision
+          : settings.llm.backend === 'codex-cli' ? t.health.codexVision
+            : health.vision.state === 'off' ? t.health.visionOff : undefined,
       )}
 
       {error && <div className="settings-warn">{error}</div>}

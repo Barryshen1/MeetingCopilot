@@ -113,6 +113,8 @@ function seededStore(): SettingsStore {
   const store = new SettingsStore(join(dir, 'settings.json'), fakeCipher);
   store.applyPatch({
     llm: {
+      // the wizard and Settings always write the backend with an API provider
+      backend: 'openai-compatible',
       baseUrl: 'https://api.deepseek.com/v1',
       model: 'deepseek-chat',
       apiKey: 'sk-deepseek-supersecret-0001',
@@ -236,6 +238,14 @@ describe('buildDiagnosticsReport', () => {
     expect(report).toContain('Proxy configured     : yes');
     expect(report).toContain('Audio capture        : idle lastStarted=2026-08-17T08:00:00.000Z');
     expect(report).toContain('Generated at         : 2026-08-17T09:30:00.000Z');
+  });
+
+  it('names the Claude Code CLI backend with its model and effort', () => {
+    const store = seededStore();
+    store.applyPatch({ llm: { backend: 'claude-code-cli', claudeCode: { model: 'claude-sonnet-5-5', effort: 'medium' } } });
+    expect(buildDiagnosticsReport(facts(store))).toContain('LLM provider         : Claude Code CLI (claude-sonnet-5-5, effort medium)');
+    store.applyPatch({ llm: { claudeCode: { model: '', effort: undefined } } });
+    expect(buildDiagnosticsReport(facts(store))).toContain('LLM provider         : Claude Code CLI (CLI default model, effort CLI default)');
   });
 
   it('names the ASR provider from the endpoint, not from a stale providerId', () => {

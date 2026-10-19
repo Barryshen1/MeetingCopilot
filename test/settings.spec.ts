@@ -360,6 +360,112 @@ describe('SettingsStore', () => {
   });
 });
 
+// ---------------------------------------------------------------- Claude Code default
+
+/** a v2 profile exactly as a build before Claude Code support saved it */
+function preClaudeProfile(llm: Partial<SettingsFile['llm']> = {}, vision: SettingsFile['vision'] = {}): SettingsFile {
+  const { claudeCode: _claudeCode, ...oldLlm } = defaultSettings().llm;
+  // those builds wrote their default backend into every save
+  return { ...defaultSettings(), onboarding: { schemaVersion: 1, completed: true }, llm: { ...oldLlm, backend: 'openai-compatible', ...llm }, vision };
+}
+
+describe('SettingsStore Claude Code default', () => {
+  it('starts new profiles on Claude Code CLI with claude-opus-5-5 at low effort', () => {
+    const fresh = new SettingsStore(file, fakeCipher);
+    expect(fresh.getPublic().llm.backend).toBe('claude-code-cli');
+    expect(fresh.getPublic().llm.claudeCode).toEqual({ model: 'claude-opus-5-5', effort: 'low' });
+    // the API endpoint stays ready for anyone who switches to an API provider
+    expect(fresh.getPublic().llm.baseUrl).toBe('https://api.deepseek.com/v1');
+  });
+
+  it('moves an older profile that never configured an answer provider to Claude Code, once', () => {
+    writeFileSync(file, JSON.stringify(preClaudeProfile({ verification: { lastTestOk: false, lastTestCode: 'INVALID_KEY' } })));
+    const store = new SettingsStore(file, fakeCipher);
+    expect(store.getPublic().llm.backend).toBe('claude-code-cli');
+    expect(store.getPublic().llm.claudeCode).toEqual({ model: 'claude-opus-5-5', effort: 'low' });
+    // the old verdict belonged to the API endpoint, not to Claude Code
+    expect(store.getPublic().llm.verification).toBeUndefined();
+    // nothing is written until the next save; then the choice is on disk
+    expect(JSON.parse(readFileSync(file, 'utf8')).llm.claudeCode).toBeUndefined();
+    store.applyPatch({ ui: { theme: 'light' } });
+    const onDisk = JSON.parse(readFileSync(file, 'utf8')) as SettingsFile;
+    expect(onDisk.llm.backend).toBe('claude-code-cli');
+    expect(onDisk.llm.claudeCode).toEqual({ model: 'claude-opus-5-5', effort: 'low' });
+  });
+
+  it('keeps an older profile on the API backend when it saved an LLM key', () => {
+    writeFileSync(file, JSON.stringify(preClaudeProfile({ apiKeyEnc: fakeCipher.encrypt('sk-test'), verification: { lastTestOk: true } })));
+    const store = new SettingsStore(file, fakeCipher);
+    expect(store.getPublic().llm.backend).toBe('openai-compatible');
+    expect(store.getPublic().llm.verification?.lastTestOk).toBe(true);
+    expect(store.getLlmApiKey()).toBe('sk-test');
+    // even when the old file never wrote a backend at all
+    const { backend: _backend, ...noBackend } = preClaudeProfile({ apiKeyEnc: fakeCipher.encrypt('sk-test') }).llm;
+    writeFileSync(file, JSON.stringify({ ...preClaudeProfile(), llm: noBackend }));
+    expect(new SettingsStore(file, fakeCipher).getPublic().llm.backend).toBe('openai-compatible');
+  });
+
+  it('keeps an older profile on the API backend when screenshots use a saved vision key', () => {
+    writeFileSync(file, JSON.stringify(preClaudeProfile({}, {
+      baseUrl: 'https://generativelanguage.googleapis.com/v1beta/openai', model: 'gemini-2.5-flash', apiKeyEnc: fakeCipher.encrypt('vision-key'),
+    })));
+    expect(new SettingsStore(file, fakeCipher).getPublic().llm.backend).toBe('openai-compatible');
+  });
+
+  it('moves an older Codex CLI profile to Claude Code once, keeping its Codex settings', () => {
+    writeFileSync(file, JSON.stringify(preClaudeProfile({ backend: 'codex-cli', codex: { model: 'gpt-6-sol' }, verification: { lastTestOk: true } })));
+    const store = new SettingsStore(file, fakeCipher);
+    expect(store.getPublic().llm.backend).toBe('claude-code-cli');
+    expect(store.getPublic().llm.claudeCode).toEqual({ model: 'claude-opus-5-5', effort: 'low' });
+    expect(store.getPublic().llm.codex).toEqual({ model: 'gpt-6-sol' });
+    // the Codex verdict doesn't vouch for Claude Code
+    expect(store.getPublic().llm.verification).toBeUndefined();
+    // switching back to Codex afterwards sticks
+    store.applyPatch({ llm: { backend: 'codex-cli' } });
+    expect(new SettingsStore(file, fakeCipher).getPublic().llm.backend).toBe('codex-cli');
+  });
+
+  it('never overrides a backend chosen after Claude Code support, even the API without a key', () => {
+    const store = new SettingsStore(file, fakeCipher);
+    store.applyPatch({ llm: { backend: 'openai-compatible' } });
+    expect(new SettingsStore(file, fakeCipher).getPublic().llm.backend).toBe('openai-compatible');
+    store.applyPatch({ llm: { backend: 'codex-cli' } });
+    expect(new SettingsStore(file, fakeCipher).getPublic().llm.backend).toBe('codex-cli');
+  });
+
+  it('migrates v1 profiles by the same rule', () => {
+    // V1_FILE saved a DeepSeek key: the user configured an API provider
+    expect(migrateSettingsV1ToV2(V1_FILE).llm.backend).toBe('openai-compatible');
+    const noKey = migrateSettingsV1ToV2({ version: 1, llm: { model: 'deepseek-chat', baseUrl: 'https://api.deepseek.com/v1' } });
+    expect(noKey.llm.backend).toBe('claude-code-cli');
+    expect(noKey.llm.claudeCode).toEqual({ model: 'claude-opus-5-5', effort: 'low' });
+  });
+
+  it('persists an explicit return to the CLI default model and effort', () => {
+    const store = new SettingsStore(file, fakeCipher);
+    store.applyPatch({ llm: { claudeCode: { model: '', effort: undefined } } });
+    const reloaded = new SettingsStore(file, fakeCipher);
+    // empty means the CLI default; the new-profile defaults never come back
+    expect(reloaded.getPublic().llm.claudeCode).toEqual({ model: '' });
+    expect(reloaded.getPublic().llm.backend).toBe('claude-code-cli');
+  });
+
+  it('invalidates Claude Code verification only when the effective configuration changes', () => {
+    const store = new SettingsStore(file, fakeCipher);
+    store.recordVerification('llm', { lastTestOk: true });
+    store.applyPatch({ llm: { answerLang: 'english', apiKey: 'unused-key', claudeCode: { model: ' claude-opus-5-5 ' } }, ui: { theme: 'light' } });
+    expect(store.getPublic().llm.verification?.lastTestOk).toBe(true);
+    store.applyPatch({ llm: { claudeCode: { effort: 'high' } } });
+    expect(store.getPublic().llm.verification).toBeUndefined();
+    store.recordVerification('llm', { lastTestOk: true });
+    store.applyPatch({ llm: { claudeCode: { model: 'claude-haiku-5-5' } } });
+    expect(store.getPublic().llm.verification).toBeUndefined();
+    store.recordVerification('llm', { lastTestOk: true });
+    store.applyPatch({ llm: { backend: 'codex-cli' } });
+    expect(store.getPublic().llm.verification).toBeUndefined();
+  });
+});
+
 // ---------------------------------------------------------------- v2 schema
 
 /** a realistic pre-v2 file: real ciphertexts, cloud realtime ASR, custom vision */

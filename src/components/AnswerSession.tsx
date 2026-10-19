@@ -50,10 +50,11 @@ export function AnswerSession({
   onShotError,
   screenshotMode,
   onScreenshotModeChange,
-  codexModel,
-  codexEffort,
-  codexFast,
-  onConfigureCodex,
+  cliBackend,
+  cliModel,
+  cliEffort,
+  cliFast,
+  onConfigureCli,
 }: {
   sessions: StoredSession[];
   currentId: string;
@@ -85,12 +86,13 @@ export function AnswerSession({
   onShotError?: (message: string) => void;
   screenshotMode: ScreenshotMode;
   onScreenshotModeChange: (mode: ScreenshotMode) => void;
-  /** Present only when Codex CLI generates answers. */
-  codexModel?: string;
-  codexEffort?: string;
+  /** Present only when a CLI (Claude Code or Codex) generates answers. */
+  cliBackend?: 'claude-code-cli' | 'codex-cli';
+  cliModel?: string;
+  cliEffort?: string;
   /** Codex Fast mode (priority service tier) is on for answers. */
-  codexFast?: boolean;
-  onConfigureCodex?: () => void;
+  cliFast?: boolean;
+  onConfigureCli?: () => void;
 }) {
   const t = useT();
   const boxRef = useRef<HTMLDivElement>(null);
@@ -296,11 +298,12 @@ export function AnswerSession({
         )}
       </div>
       {!answersReady && <div className="kb-notice">{answersHint}</div>}
-      {onConfigureCodex && <div className="answer-model-row">
-        <span>{t.answer.codexModelLabel}</span>
-        <button type="button" className="btn btn-sm answer-model-button"
-          onClick={onConfigureCodex} title={t.answer.changeCodexModel}>
-          {codexModel || t.answer.codexDefaultModel}{codexEffort ? ` · ${codexEffort}` : ''}{codexFast ? ' · Fast' : ''} ▾
+      {onConfigureCli && <div className="answer-model-row">
+        <span>{cliBackend === 'claude-code-cli' ? t.answer.claudeModelLabel : t.answer.codexModelLabel}</span>
+        <button type="button" className="btn btn-sm answer-model-button" onClick={onConfigureCli}
+          title={cliBackend === 'claude-code-cli' ? t.answer.changeClaudeModel : t.answer.changeCodexModel}>
+          {cliModel || (cliBackend === 'claude-code-cli' ? t.answer.claudeDefaultModel : t.answer.codexDefaultModel)}
+          {cliEffort ? ` · ${cliEffort}` : ''}{cliFast ? ' · Fast' : ''} ▾
         </button>
       </div>}
       {/* 回答模式 steers every answer (typed, ⚡答, 持续答), not only screenshots */}
